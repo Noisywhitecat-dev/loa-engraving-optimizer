@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>로스트아크 각인 · 아크패시브 최적화</title>
+<meta name="description" content="스킬별 딜지분·치명 수치를 넣으면 최적의 각인과 아크패시브 진화 노드를 전수 탐색해 추천하는 로스트아크 비공식 계산기. 뭉툭한 가시, 입식 타격가, 음속 돌파, 마나 용광로 비교.">
+<meta property="og:title" content="로스트아크 각인 · 아크패시브 최적화">
+<meta property="og:description" content="최적의 각인과 진화 노드를 전수 탐색해 추천하는 비공식 계산기 (2026-11-18 패치 기준)">
+<meta property="og:type" content="website">
+<style>
+:root{
+  --bg:#f5f6f8; --card:#ffffff; --ink:#1a1f25; --muted:#5a6471; --line:#dde2e8;
+  --accent:#0b6b94; --accent-ink:#ffffff; --good:#0a7a4d; --bad:#b3372f; --warn:#96590a;
+  --chip:#edf1f5; --field:#ffffff; --best:#e7f3f8;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#13161a; --card:#1b1f25; --ink:#e6e9ed; --muted:#98a2ae; --line:#2b3139;
+    --accent:#56b6dd; --accent-ink:#0c1419; --good:#4dcc93; --bad:#ef7b72; --warn:#e2a750;
+    --chip:#252b33; --field:#14181d; --best:#1d2c35;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:14px/1.55 "Pretendard","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 80px}
+header.top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
+h1{font-size:22px;margin:0;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:4px 0 0;font-size:13px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+h2{font-size:15px;margin:0 0 4px}
+h2 small,.hint{color:var(--muted);font-weight:400;font-size:12px}
+.desc{color:var(--muted);font-size:12.5px;margin:0 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px 12px}
+label.f{display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--muted)}
+label.f b{color:var(--ink);font-weight:600}
+input[type=number],input[type=text],select{
+  font:inherit;color:var(--ink);background:var(--field);border:1px solid var(--line);
+  border-radius:6px;padding:5px 7px;width:100%;min-width:0}
+input[type=number]{font-variant-numeric:tabular-nums}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+input:disabled,select:disabled{opacity:.4}
+label.c{display:inline-flex;align-items:center;gap:6px;margin-right:16px;cursor:pointer}
+.row{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end}
+.row > label.f{flex:1 1 150px}
+.tw{overflow-x:auto;margin:0 -4px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:5px 4px;text-align:left;vertical-align:middle}
+th{font-size:12px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line);white-space:nowrap}
+#skills table{min-width:960px}
+#skills td input[type=number]{width:72px}
+#skills td input[type=text]{width:128px}
+#skills td select{width:86px}
+td.ck{text-align:center}
+tfoot td{color:var(--muted);font-size:12.5px;border-top:1px solid var(--line)}
+button{font:inherit;font-weight:600;border-radius:8px;border:1px solid var(--line);
+  background:var(--card);color:var(--ink);padding:8px 14px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);padding:10px 22px;font-size:15px}
+button:disabled{opacity:.5;cursor:default}
+.bar{height:6px;background:var(--chip);border-radius:3px;overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;width:0;background:var(--accent)}
+.sticky{position:sticky;bottom:0;background:var(--bg);padding:10px 0;z-index:5;border-top:1px solid var(--line)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.card{border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--card)}
+.card.best{background:var(--best);border-color:var(--accent)}
+.card h3{margin:0;font-size:15px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.badge{font-size:11px;font-weight:700;background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:2px 8px}
+.gain{font-size:28px;font-weight:700;letter-spacing:-.02em;margin:6px 0 8px;font-variant-numeric:tabular-nums}
+.gain.pos{color:var(--good)} .gain.neg{color:var(--bad)}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 10px}
+.chip{background:var(--chip);border-radius:6px;padding:2px 8px;font-size:12.5px;white-space:nowrap}
+.chip.st{outline:1px solid var(--accent)}
+.chip.rq{outline:1px dashed var(--accent)}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:12.5px}
+dt{color:var(--muted);white-space:nowrap} dd{margin:0}
+.alt{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);font-size:12.5px;color:var(--muted)}
+.alt div{display:flex;justify-content:space-between;gap:8px}
+details{margin-top:10px} summary{cursor:pointer;color:var(--accent);font-size:12.5px}
+.warn{color:var(--warn);font-size:12.5px;margin:6px 0 0}
+.num{text-align:right;white-space:nowrap}
+.notes li{margin-bottom:4px} .notes{color:var(--muted);font-size:12.5px;padding-left:18px;margin:8px 0 0}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.two section{margin:0}
+.grp{margin-top:12px} .grp > b{display:block;font-size:12.5px;margin-bottom:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>로스트아크 각인 · 아크패시브 최적화</h1>
+      <p class="sub">2026-11-18 패치(다중 치명타, 뭉툭한 가시 개편) 기준 · 음속 돌파 / 뭉툭한 가시 / 입식 타격가 / 마나 용광로 비교</p>
+    </div>
+    <button id="reset" type="button">입력 초기화</button>
+  </header>
+
+  <section id="char"></section>
+  <div class="two" style="margin-bottom:14px">
+    <section id="bracelet"></section>
+    <section id="stone"></section>
+  </div>
+  <section id="skills"></section>
+  <section id="current"></section>
+  <section id="options"></section>
+
+  <div class="sticky">
+    <button class="primary" id="run" type="button">최적 세팅 계산</button>
+    <span id="status" class="hint" style="margin-left:10px"></span>
+    <div class="bar"><i id="prog"></i></div>
+  </div>
+
+  <section id="results" hidden></section>
+
+  <section>
+    <h2>계산 방식과 가정</h2>
+    <ul class="notes">
+      <li>모든 결과는 <b>현재 세팅 대비 기대 DPS 변화</b>입니다. 딜지분과 쿨타임 소화 비율은 현재 세팅에서 측정한 값으로 보고, 스킬별 피해 배율과 사용 횟수의 변화를 지분으로 가중합니다.</li>
+      <li>치명 기대 배율: 치적 100% 이하는 <code>(1−치적) + 치적×치피×(1+치명 시 피해)</code>, 100% 초과는 다중 치명타로 <code>(1+치명 시 피해)×(1+치적×(치피−1))</code>.</li>
+      <li>뭉툭한 가시: 스킬별 치적을 80%로 제한하고 초과분×1.4를 그 스킬의 진화형 피해로 전환합니다(상한 없음, 다중 치명타 없음).</li>
+      <li>치명타 적중률, 치명타 피해, 추가 피해, 진화형 피해, 공격력 증가율은 각 그룹 안에서 합연산이고 그룹끼리는 곱연산입니다. "적에게 주는 피해"와 스킬 피해 증가는 출처마다 따로 곱합니다(각인끼리도 곱연산).</li>
+      <li>쿨감: 사용 횟수 변화 = <code>1 / (1 − 소화 비율 × (1 − 새 쿨타임/현재 쿨타임))</code>. 끝없는 마나+무한한 마력은 합연산, 최적화 훈련+타이밍 지배는 합연산, 두 묶음과 신속은 서로 곱연산입니다. 최적화 훈련·타이밍 지배는 각성기에 적용되지 않습니다.</li>
+      <li>서포터가 항상 있다고 봅니다: 정열의 춤사위 진화형 피해 +12%, 축복의 여신 공이속 +9%. 서포터 없는 수련장 실측과 비교할 때는 "기타 진화형 피해"에 −12, "추가 공격/이동 속도"에 −9를 더해 상쇄합니다.</li>
+      <li>"치명타 적중 시 피해"는 회심, 팔찌, 아크 그리드가 서로 곱연산입니다(수련장 실측 기반 정리글 기준). 한 팔찌에 같은 문구가 두 줄이면 합산합니다.</li>
+      <li>각성기에도 치명타, 각인, 진화형 피해, 신속 쿨감이 적용됩니다. 각성기를 제외한다고 툴팁에 명시된 효과(타격·기습·결투의 대가, 최적화 훈련, 타이밍 지배)만 뺍니다.</li>
+      <li>기습·결투의 대가는 기본 7.6%와 방향 성공 시 15%를 합산(22.6%)해 한 번 곱하고, 타격의 대가는 공격 타입이 백어택·헤드어택이 아닌 스킬에만 적용합니다. 세 각인 모두 각성기에는 적용하지 않습니다.</li>
+      <li>아드레날린, 달인, 입식 타격가는 항상 최대 중첩으로 계산합니다. 추천 조건에서 체크한 달인의 저력·바리케이드·질량 증가는 추천 각인에 반드시 포함하고 항상 발동으로 계산합니다. 예리한 둔기는 기대값 0.98배를 곱합니다.</li>
+      <li>일격의 치명타 피해는 방향성 스킬(백/헤드 체크)에 성공 여부와 무관하게 적용됩니다. 백어택 성공 시 치적 +10%·피해 +5%, 헤드어택 성공 시 피해 +20%를 성공 비율만큼 반영합니다.</li>
+      <li>공격 속도는 음속 돌파와 질량 증가 판정에만, 이동 속도는 음속 돌파와 돌격대장에만 쓰입니다. 특화의 딜 기여는 계산하지 않습니다.</li>
+      <li>환산 계수(커뮤니티 측정값): 치명 27.944당 치적 1%, 신속 58.24당 공이속 1%, 신속 46.57당 쿨감 1%. 각인·노드 수치는 2026-11-19 기준 자료, 팔찌 수치는 공식 확률 공개(2025-12-30 수정본) 기준입니다.</li>
+      <li>입력한 값은 이 브라우저에만 저장되고 어디로도 전송되지 않습니다.</li>
+      <li>이 계산기는 개인이 만든 비공식 도구이며 스마일게이트 RPG와 관련이 없습니다. 인게임 실측으로 검증하지 않은 규칙이 있으니 참고용으로 써 주세요.</li>
+    </ul>
+  </section>
+</div>
+
+<script id="engine">
+const LOA = (function () {
+  'use strict';
+  const K = { CRIT: 27.944, SWIFT_AS: 58.2449, SWIFT_MS: 58.2211, SWIFT_CDR: 46.5731,
+              CAP: 40, PARTY_EVO: 12, PARTY_SPEED: 9, PET: 160, T1: 50, EPS: 1e-9 };
+  const S3 = [3, 3.75, 5.25, 6];
+  const S15 = [7.5, 9.4, 13.2, 15];
+
+  // 각인 (유물 4단계). stone = 어빌리티 스톤 Lv1~4 추가값
+  const ENGR = {
+    grudge:     { name: '원한',           val: 21,  stone: S3 },
+    blunt:      { name: '예리한 둔기',    val: 52,  stone: S15 },
+    adrenaline: { name: '아드레날린',     val: 20,  stone: [0.48, 0.6, 0.83, 0.95] },
+    dagger:     { name: '정밀 단도',      val: 21,  stone: S3 },
+    doll:       { name: '저주받은 인형',  val: 17,  stone: S3 },
+    raid:       { name: '돌격대장',       val: 48,  stone: S15 },
+    ambush:     { name: '기습의 대가',    val: 7.6, stone: [2.7, 3.4, 4.7, 5.4] },
+    duel:       { name: '결투의 대가',    val: 7.6, stone: [2.7, 3.4, 4.7, 5.4] },
+    hit:        { name: '타격의 대가',    val: 17,  stone: S3 },
+    charge:     { name: '슈퍼 차지',      val: 21,  stone: S3 },
+    rapid:      { name: '속전속결',       val: 21,  stone: S3 },
+    mana:       { name: '마나 효율 증가', val: 16,  stone: S3 },
+    tenacity:   { name: '달인의 저력',    val: 17,  stone: S3 },
+    barricade:  { name: '바리케이드',     val: 17,  stone: S3 },
+    mass:       { name: '질량 증가',      val: 19,  stone: S3 },
+    stable:     { name: '안정된 상태',    val: 17,  stone: S3 }
+  };
+  const ENGR_ORDER = Object.keys(ENGR);
+  const SCALAR = ['grudge', 'doll', 'tenacity', 'barricade', 'stable'];
+
+  const T2 = { endless: { name: '끝없는 마나', max: 2 }, forbidden: { name: '금단의 주문', max: 2 },
+               keen: { name: '예리한 감각', max: 2 }, limit: { name: '한계 돌파', max: 3 },
+               optim: { name: '최적화 훈련', max: 2 } };
+  const T3 = { infinite: { name: '무한한 마력', max: 2 }, allout: { name: '혼신의 강타', max: 2 },
+               strike: { name: '일격', max: 2 }, tank: { name: '파괴 전차', max: 2 },
+               timing: { name: '타이밍 지배', max: 2 } };
+  const T4 = { crit: { name: '회심' }, master: { name: '달인' }, crush: { name: '분쇄' } };
+  const T5 = { thorn: { name: '뭉툭한 가시' }, sonic: { name: '음속 돌파' }, stand: { name: '입식 타격가' },
+               furnace: { name: '마나 용광로' }, infight: { name: '인파이팅' } };
+
+  // 팔찌 특수 옵션. eff: 비교에 영향을 주는 효과 (없으면 모든 세팅에 똑같이 곱해져 상쇄됨)
+  const BRACELET = {
+    none:     { name: '없음' },
+    crH:      { name: '치명타 적중률 + 치명타 적중 시 피해 1.5%', relic: [2.6, 3.4, 4.2], ancient: [3.4, 4.2, 5.0], eff: 'cr', h: 1 },
+    cdH:      { name: '치명타 피해 + 치명타 적중 시 피해 1.5%',   relic: [5.2, 6.8, 8.4], ancient: [6.8, 8.4, 10.0], eff: 'cd', h: 1 },
+    cr:       { name: '치명타 적중률', relic: [2.6, 3.4, 4.2], ancient: [3.4, 4.2, 5.0], eff: 'cr' },
+    cd:       { name: '치명타 피해',   relic: [5.2, 6.8, 8.4], ancient: [6.8, 8.4, 10.0], eff: 'cd' },
+    add:      { name: '추가 피해',     relic: [2.5, 3.0, 3.5], ancient: [3.0, 3.5, 4.0], eff: 'add' },
+    addDemon: { name: '추가 피해 + 악마·대악마 피해 2.5%', relic: [2.0, 2.5, 3.0], ancient: [2.5, 3.0, 3.5], eff: 'add' },
+    speed:    { name: '공격 및 이동 속도', relic: [3, 4, 5], ancient: [4, 5, 6], eff: 'speed' },
+    wpSpeed:  { name: '적중 시 무기 공격력 중첩 + 공이속 1% (최대 6중첩)', relic: [1000, 1160, 1320], ancient: [1160, 1320, 1480], eff: 'speed', fixed: 6, unit: '' },
+    dmg:      { name: '적에게 주는 피해', relic: [1.5, 2.0, 2.5], ancient: [2.0, 2.5, 3.0] },
+    dmgStag:  { name: '적에게 주는 피해 + 무력화 상태 적 피해', relic: [1.5, 2.0, 2.5], ancient: [2.0, 2.5, 3.0] },
+    cdrDmg:   { name: '재사용 대기시간 +2% + 적에게 주는 피해', relic: [4.0, 4.5, 5.0], ancient: [4.5, 5.0, 5.5] },
+    back:     { name: '백어택 스킬 피해',   relic: [2.0, 2.5, 3.0], ancient: [2.5, 3.0, 3.5] },
+    head:     { name: '헤드어택 스킬 피해', relic: [2.0, 2.5, 3.0], ancient: [2.5, 3.0, 3.5] },
+    nondir:   { name: '비방향성 스킬 피해', relic: [2.0, 2.5, 3.0], ancient: [2.5, 3.0, 3.5] },
+    wp:       { name: '무기 공격력', relic: [6300, 7200, 8100], ancient: [7200, 8100, 9000], unit: '' },
+    wpHp:     { name: '무기 공격력 + 생명력 50% 이상 시 추가', relic: [6300, 7200, 8100], ancient: [7200, 8100, 9000], unit: '' },
+    wpStack:  { name: '무기 공격력 + 30중첩 추가', relic: [6000, 6900, 7800], ancient: [6900, 7800, 8700], unit: '' }
+  };
+
+  const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+  const num = x => { const v = Number(x); return Number.isFinite(v) ? v : 0; };
+
+  function stoneBonus(inp, id) {
+    const s = inp.stone || [];
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] && s[i].id === id && s[i].lv > 0 && ENGR[id]) {
+        if (i === 1 && s[0] && s[0].id === id) return 0;   // 같은 각인 중복 지정은 첫 칸만 인정
+        return ENGR[id].stone[clamp(Math.round(s[i].lv), 1, 4) - 1];
+      }
+    }
+    return 0;
+  }
+  function forcedEngr(inp) {
+    const out = [];
+    (inp.stone || []).forEach(s => { if (s && ENGR[s.id] && !out.includes(s.id)) out.push(s.id); });
+    return out;
+  }
+  // 추천에 반드시 들어가는 각인: 스톤 각인 + 추천 조건에서 체크한 각인
+  function requiredEngr(inp, opts) {
+    const out = forcedEngr(inp);
+    ['tenacity', 'barricade', 'mass'].forEach(id => { if (opts && opts[id] && !out.includes(id)) out.push(id); });
+    return out.slice(0, 5);
+  }
+  function braceletEffects(inp) {
+    const r = { cr: 0, cd: 0, add: 0, speed: 0, hCount: 0 };
+    const b = inp.bracelet || {};
+    const g = b.grade === 'relic' ? 'relic' : 'ancient';
+    (b.slots || []).forEach(s => {
+      const o = s && BRACELET[s.id];
+      if (!o || !o.eff) return;
+      const v = o.fixed !== undefined ? o.fixed : o[g][clamp(Math.round(num(s.tier)), 0, 2)];
+      r[o.eff] += v;
+      if (o.h) r.hCount += o.h;
+    });
+    return r;
+  }
+
+  // 치명 기대 배율. cr, cd는 배수(1.2 = 120%), H = 치명타 적중 시 피해 증가(곱연산, 1회만)
+  function critMult(cr, cd, H) {
+    if (cr <= 0) return 1;
+    if (cr <= 1) return 1 - cr + cr * cd * (1 + H);
+    return (1 + H) * (1 + cr * (cd - 1));
+  }
+  // 음속 돌파. AS, MS = 속도 증가량(%p, 상한 적용 전)
+  function sonicEvo(AS, MS, lv) {
+    const f = lv / 2;
+    let e = 0.10 * f * (clamp(AS, 0, K.CAP) + clamp(MS, 0, K.CAP));
+    if (AS > K.CAP + K.EPS && MS > K.CAP + K.EPS) e += 8 * f + 0.30 * f * ((AS - K.CAP) + (MS - K.CAP));
+    return Math.min(e, 24 * f);
+  }
+  function furnaceEvo(mana, lv) {
+    return mana > 0 ? Math.min(12 * lv, mana / 10 * 0.25 * lv) : 0;
+  }
+  // 치명타 적중 시 피해 증가. 회심 / 팔찌 / 아크 그리드는 출처끼리 곱연산 (인벤 실측 정리 2026-03, 2026-06).
+  // 한 팔찌에 같은 문구가 두 줄이면 합산한다 (같은 이름은 합연산 원칙).
+  function critHit(hasNode, riders, other) {
+    return (hasNode ? 1.12 : 1) * (1 + 0.015 * riders) * (1 + other / 100) - 1;
+  }
+  // 쿨감으로 인한 사용 횟수 배율. r = 쿨타임 소화 비율(0~1), rho = 새 쿨타임 / 기준 쿨타임
+  function useGain(r, rho) { return 1 / (1 - r * (1 - rho)); }
+
+  function context(build, inp) {
+    const has = {};
+    (build.engr || []).forEach(e => { if (ENGR[e]) has[e] = true; });
+    const st = id => stoneBonus(inp, id);
+    const br = braceletEffects(inp);
+    const t1 = build.t1, t2 = build.t2, t3 = build.t3, t4 = build.t4, t5 = build.t5 || { id: 'none', lv: 0 };
+    const critStat = num(inp.baseCrit) + K.T1 * num(t1.crit) + (build.pet === 'crit' ? K.PET : 0);
+    const swiftStat = num(inp.baseSwift) + K.T1 * num(t1.swift) + (build.pet === 'swift' ? K.PET : 0);
+    const c = {
+      has, t5, critStat, swiftStat, st,
+      cr: critStat / K.CRIT + num(inp.otherCR) + br.cr + (inp.syn10 ? 10 : 0) + (inp.syn20 ? 20 : 0)
+          + 4 * t2.keen + 12 * t3.allout + 10 * t3.strike + (t4.master ? 7 : 0)
+          + (has.adrenaline ? ENGR.adrenaline.val : 0) + (has.dagger ? ENGR.dagger.val + st('dagger') : 0),
+      cd: 200 + num(inp.otherCD) + br.cd + (has.blunt ? ENGR.blunt.val + st('blunt') : 0) - (has.dagger ? 6 : 0),
+      dirCd: 16 * t3.strike,
+      evo: K.PARTY_EVO + num(inp.karma) + num(inp.otherEvo) + 5 * t2.forbidden + 5 * t2.keen + 10 * t2.limit
+           + 5 * t2.optim + 8 * t3.infinite + 2 * t3.allout + 12 * t3.tank + 8 * t3.timing + (t4.crush ? 20 : 0),
+      manaEvo: 5 * t2.forbidden,
+      H: critHit(t4.crit, br.hCount, num(inp.otherH)),
+      atk: 1 + (num(inp.otherAtk) + (has.adrenaline ? 6 * (0.9 + st('adrenaline')) : 0)) / 100,
+      add: 1 + (num(inp.otherAdd) + br.add + (t4.master ? 8.5 : 0)) / 100,
+      AS: swiftStat / K.SWIFT_AS + num(inp.extraAS) + K.PARTY_SPEED + br.speed + 4 * t3.tank - (has.mass ? 10 : 0),
+      MS: swiftStat / K.SWIFT_MS + num(inp.extraMS) + K.PARTY_SPEED + br.speed,
+      swiftCdr: swiftStat / K.SWIFT_CDR / 100,
+      manaCdr: (7 * t2.endless + 7 * t3.infinite) / 100,
+      trainCdr: (4 * t2.optim + 5 * t3.timing) / 100
+    };
+    c.sonic = t5.id === 'sonic' ? sonicEvo(c.AS, c.MS, t5.lv) : 0;
+    // 모든 스킬에 똑같이 곱해지는 각인 배율
+    let sc = 1;
+    SCALAR.forEach(id => { if (has[id]) sc *= 1 + (ENGR[id].val + st(id)) / 100; });
+    if (has.mass) sc *= 1 + (ENGR.mass.val + st('mass')) / 100;
+    if (has.raid) sc *= 1 + clamp(c.MS, 0, K.CAP) * (ENGR.raid.val + st('raid')) / 100 / 100;
+    if (has.blunt) sc *= 0.98;
+    c.scalar = sc;
+    return c;
+  }
+
+  // 스킬 종류에 따라 달라지는 각인 배율
+  function skillEngr(has, st, sk, succ) {
+    const awk = sk.type === 'awakening';
+    let f = 1;
+    if (has.ambush && !awk) f *= 1 + (ENGR.ambush.val + st('ambush') + (succ && sk.dir === 'back' ? 15 : 0)) / 100;
+    if (has.duel && !awk)   f *= 1 + (ENGR.duel.val + st('duel') + (succ && sk.dir === 'head' ? 15 : 0)) / 100;
+    if (has.hit && !awk && sk.dir === 'none') f *= 1 + (ENGR.hit.val + st('hit')) / 100;
+    if (has.charge && sk.charge) f *= 1 + (ENGR.charge.val + st('charge')) / 100;
+    if (has.rapid && sk.hold)    f *= 1 + (ENGR.rapid.val + st('rapid')) / 100;
+    if (has.mana && sk.mana > 0) f *= 1 + (ENGR.mana.val + st('mana')) / 100;
+    return f;
+  }
+
+  function skillMult(c, sk, succ) {
+    let cr = Math.max(0, c.cr + num(sk.cr) + (succ && sk.dir === 'back' ? 10 : 0));
+    const cd = c.cd + num(sk.cd) + (sk.dir !== 'none' ? c.dirCd : 0);
+    let evo = c.evo + (sk.mana > 0 ? c.manaEvo : 0);
+    const shown = cr, t5 = c.t5;
+    if (t5.id === 'thorn') {
+      evo += 9.5 * t5.lv + (t5.lv === 2 ? 1.4 : 1.2) * Math.max(0, cr - 80);
+      cr = Math.min(cr, 80);
+    } else if (t5.id === 'sonic') evo += c.sonic;
+    else if (t5.id === 'stand') evo += 10.5 * t5.lv;
+    else if (t5.id === 'infight') evo += 9 * t5.lv;
+    else if (t5.id === 'furnace') evo += furnaceEvo(num(sk.mana), t5.lv);
+    let m = c.atk * c.add * c.scalar * (1 + evo / 100) * critMult(cr / 100, cd / 100, c.H)
+          * skillEngr(c.has, c.st, sk, succ);
+    if (succ) m *= sk.dir === 'back' ? 1.05 : sk.dir === 'head' ? 1.2 : 1;
+    return { m, cr: shown, crEff: cr, cd, evo };
+  }
+
+  function evalBuild(build, inp) {
+    const c = context(build, inp);
+    const rows = inp.skills.map(sk => {
+      const p = sk.dir === 'none' ? 0 : clamp(num(sk.p), 0, 100) / 100;
+      const a = skillMult(c, sk, false);
+      const b = p > 0 ? skillMult(c, sk, true) : a;
+      return {
+        M: p * b.m + (1 - p) * a.m,
+        cr: p * b.cr + (1 - p) * a.cr, cd: a.cd, evo: p * b.evo + (1 - p) * a.evo,
+        hit: p * Math.min(b.crEff, 100) + (1 - p) * Math.min(a.crEff, 100),
+        multi: p * Math.max(0, b.crEff - 100) + (1 - p) * Math.max(0, a.crEff - 100),
+        cdf: (1 - c.swiftCdr) * (sk.mana > 0 ? 1 - c.manaCdr : 1) * (sk.type !== 'awakening' ? 1 - c.trainCdr : 1)
+      };
+    });
+    return { ctx: c, rows };
+  }
+
+  // ev 세팅이 cur 세팅 대비 몇 배의 DPS인지
+  function compare(inp, ev, cur) {
+    let tot = 0, sum = 0;
+    const per = inp.skills.map((sk, i) => {
+      const s = Math.max(0, num(sk.share));
+      if (!s) return null;
+      const dmg = ev.rows[i].M / cur.rows[i].M;
+      const use = useGain(clamp(num(sk.r), 0, 100) / 100, ev.rows[i].cdf / cur.rows[i].cdf);
+      tot += s * dmg * use; sum += s;
+      return { dmg, use };
+    });
+    return { ratio: sum ? tot / sum : 1, per };
+  }
+
+  function combos(arr, k) {
+    const out = [];
+    (function rec(start, pick) {
+      if (pick.length === k) { out.push(pick.slice()); return; }
+      for (let i = start; i <= arr.length - (k - pick.length); i++) { pick.push(arr[i]); rec(i + 1, pick); pick.pop(); }
+    })(0, []);
+    return out;
+  }
+  function levelSplits(keys, caps, total) {
+    const out = [];
+    (function rec(i, left, cur) {
+      if (i === keys.length) { if (left === 0) out.push(Object.assign({}, cur)); return; }
+      for (let v = 0; v <= Math.min(caps[keys[i]].max, left); v++) { cur[keys[i]] = v; rec(i + 1, left - v, cur); }
+    })(0, total, {});
+    return out;
+  }
+
+  // 후보 각인 조합
+  function engravingSets(inp, opts, act) {
+    const forced = requiredEngr(inp, opts);
+    const any = fn => act.some(fn);
+    const usable = {
+      hit: any(sk => sk.dir === 'none' && sk.type !== 'awakening'),
+      charge: any(sk => sk.charge), rapid: any(sk => sk.hold), mana: any(sk => sk.mana > 0)
+    };
+    const scal = ['grudge', 'doll'].filter(id => !forced.includes(id));
+    const non = ['blunt', 'adrenaline', 'dagger', 'raid', 'ambush', 'duel', 'hit', 'charge', 'rapid', 'mana', 'mass']
+      .filter(id => !forced.includes(id) && usable[id] !== false);
+    const n = 5 - forced.length, sets = [];
+    // 값이 고정된 각인(원한 > 저주받은 인형)은 큰 것부터만 채택
+    for (let k = 0; k <= Math.min(n, scal.length); k++)
+      combos(non, n - k).forEach(c => sets.push(forced.concat(scal.slice(0, k), c)));
+    return sets;
+  }
+
+  // 전수 탐색. 제너레이터: 진행률(0~1)을 yield하고 결과를 return
+  function* optimize(inp, cur, opts) {
+    opts = opts || {};
+    const curEv = evalBuild(cur, inp);
+    const actIdx = [];
+    inp.skills.forEach((sk, i) => { if (num(sk.share) > 0) actIdx.push(i); });
+    const act = actIdx.map(i => inp.skills[i]);
+    const sumShare = act.reduce((a, sk) => a + num(sk.share), 0);
+    const t5List = opts.t5List || ['thorn', 'sonic', 'stand', 'furnace'];
+    if (!act.length) return { cur: curEv, results: [] };
+
+    const st = id => stoneBonus(inp, id), br = braceletEffects(inp);
+    const P = [];
+    act.forEach((sk, ai) => {
+      const w = num(sk.share) / sumShare / curEv.rows[actIdx[ai]].M;
+      const p = sk.dir === 'none' ? 0 : clamp(num(sk.p), 0, 100) / 100;
+      if (p < 1) P.push({ ai, sk, succ: false, w: w * (1 - p) });
+      if (p > 0) P.push({ ai, sk, succ: true, w: w * p * (sk.dir === 'back' ? 1.05 : 1.2) });
+    });
+    const nP = P.length, nA = act.length;
+    const pAi = P.map(x => x.ai), pW = P.map(x => x.w);
+    const pCr = P.map(x => num(x.sk.cr) + (x.succ && x.sk.dir === 'back' ? 10 : 0));
+    const pCd = P.map(x => num(x.sk.cd)), pDir = P.map(x => x.sk.dir !== 'none');
+    const pMana = P.map(x => x.sk.mana > 0), pFur = P.map(x => furnaceEvo(num(x.sk.mana), 2));
+    const aR = act.map(sk => clamp(num(sk.r), 0, 100) / 100), aMana = act.map(sk => sk.mana > 0);
+    const aAwk = act.map(sk => sk.type === 'awakening'), aCur = actIdx.map(i => curEv.rows[i].cdf);
+
+    const crBase = num(inp.otherCR) + br.cr + (inp.syn10 ? 10 : 0) + (inp.syn20 ? 20 : 0);
+    const cdBase = 200 + num(inp.otherCD) + br.cd;
+    const evoBase = K.PARTY_EVO + num(inp.karma) + num(inp.otherEvo);
+    const H0 = critHit(false, br.hCount, num(inp.otherH)), H1 = critHit(true, br.hCount, num(inp.otherH));
+    const asBase = num(inp.extraAS) + K.PARTY_SPEED + br.speed, msBase = num(inp.extraMS) + K.PARTY_SPEED + br.speed;
+    const addBase = num(inp.otherAdd) + br.add, atkBase = num(inp.otherAtk);
+    const stDag = st('dagger'), stBlu = st('blunt'), stAdr = st('adrenaline');
+
+    const forced = forcedEngr(inp);
+    const massFree = !!opts.mass || forced.includes('mass');
+    const sets = engravingSets(inp, opts, act), nS = sets.length;
+    const sCls = new Int32Array(nS), sScalar = new Float64Array(nS), sRaid = new Float64Array(nS);
+    const sMassChk = new Uint8Array(nS), sF = new Float64Array(nS * nP);
+    sets.forEach((ids, si) => {
+      const has = {}; ids.forEach(id => has[id] = true);
+      sCls[si] = (has.adrenaline ? 1 : 0) | (has.dagger ? 2 : 0) | (has.blunt ? 4 : 0) | (has.mass ? 8 : 0);
+      let sc = 1;
+      SCALAR.forEach(id => { if (has[id]) sc *= 1 + (ENGR[id].val + st(id)) / 100; });
+      if (has.mass) sc *= 1 + (ENGR.mass.val + st('mass')) / 100;
+      sScalar[si] = sc;
+      sRaid[si] = has.raid ? (ENGR.raid.val + st('raid')) / 100 : 0;
+      sMassChk[si] = has.mass && !massFree ? 1 : 0;
+      for (let j = 0; j < nP; j++) sF[si * nP + j] = skillEngr(has, st, P[j].sk, P[j].succ);
+    });
+
+    const t4Keys = Object.keys(T4), evos = [];
+    const t2List = levelSplits(Object.keys(T2), T2, 3), t3List = levelSplits(Object.keys(T3), T3, 2);
+    const t4List = combos(t4Keys, 2).map(c => { const o = {}; t4Keys.forEach(k => o[k] = c.includes(k)); return o; });
+    t2List.forEach(t2 => t3List.forEach(t3 => t4List.forEach(t4 => evos.push({
+      t2, t3, t4,
+      crNode: 4 * t2.keen + 12 * t3.allout + 10 * t3.strike + (t4.master ? 7 : 0),
+      evoNode: 5 * t2.forbidden + 5 * t2.keen + 10 * t2.limit + 5 * t2.optim + 8 * t3.infinite + 2 * t3.allout
+               + 12 * t3.tank + 8 * t3.timing + (t4.crush ? 20 : 0),
+      manaEvo: 5 * t2.forbidden, dirCd: 16 * t3.strike, asNode: 4 * t3.tank,
+      H: t4.crit ? H1 : H0, addF: 1 + (addBase + (t4.master ? 8.5 : 0)) / 100,
+      manaCdr: (7 * t2.endless + 7 * t3.infinite) / 100, trainCdr: (4 * t2.optim + 5 * t3.timing) / 100
+    }))));
+
+    const spec = clamp(Math.round(num(opts.spec)), 0, 30), rem = 40 - spec;
+    const pets = opts.pet === 'spec' ? ['spec'] : ['crit', 'swift'], stats = [];
+    for (let c = Math.max(0, rem - 30); c <= Math.min(30, rem); c++)
+      pets.forEach(pet => stats.push({
+        crit: c, swift: rem - c, pet,
+        critStat: num(inp.baseCrit) + K.T1 * c + (pet === 'crit' ? K.PET : 0),
+        swiftStat: num(inp.baseSwift) + K.T1 * (rem - c) + (pet === 'swift' ? K.PET : 0)
+      }));
+
+    const Y = []; for (let i = 0; i < 16; i++) Y.push(new Float64Array(nP));
+    const stamp = new Int32Array(16), clsScalar = new Float64Array(16), g = new Float64Array(nA);
+    let stampNow = 0;
+    const best = t5List.map(() => ({ score: new Float64Array(nS), e: new Int32Array(nS), s: new Int32Array(nS) }));
+    const total = t5List.length * evos.length;
+    let done = 0;
+
+    for (let ti = 0; ti < t5List.length; ti++) {
+      const t5 = t5List[ti], B = best[ti];
+      for (let ei = 0; ei < evos.length; ei++) {
+        const e = evos[ei], H = e.H;
+        for (let xi = 0; xi < stats.length; xi++) {
+          const x = stats[xi];
+          const swiftCdr = x.swiftStat / K.SWIFT_CDR / 100;
+          const asNo = asBase + x.swiftStat / K.SWIFT_AS + e.asNode, ms = msBase + x.swiftStat / K.SWIFT_MS;
+          const msC = clamp(ms, 0, K.CAP);
+          for (let a = 0; a < nA; a++) {
+            const cdf = (1 - swiftCdr) * (aMana[a] ? 1 - e.manaCdr : 1) * (aAwk[a] ? 1 : 1 - e.trainCdr);
+            g[a] = 1 / (1 - aR[a] * (1 - cdf / aCur[a]));
+          }
+          const crC0 = crBase + x.critStat / K.CRIT + e.crNode, evoC0 = evoBase + e.evoNode;
+          stampNow++;
+          for (let si = 0; si < nS; si++) {
+            if (sMassChk[si] && asNo - 10 < K.CAP - K.EPS) continue;   // 질량 증가: 패널티 후에도 140% 유지될 때만
+            const cls = sCls[si], Yc = Y[cls];
+            if (stamp[cls] !== stampNow) {
+              stamp[cls] = stampNow;
+              const adr = cls & 1, dag = cls & 2, blu = cls & 4, mass = cls & 8;
+              const crC = crC0 + (adr ? ENGR.adrenaline.val : 0) + (dag ? ENGR.dagger.val + stDag : 0);
+              const cdC = cdBase + (blu ? ENGR.blunt.val + stBlu : 0) - (dag ? 6 : 0);
+              const t5s = t5 === 'sonic' ? sonicEvo(asNo - (mass ? 10 : 0), ms, 2) : t5 === 'stand' ? 21 : 0;
+              for (let j = 0; j < nP; j++) {
+                let cr = crC + pCr[j]; if (cr < 0) cr = 0;
+                let evo = evoC0 + (pMana[j] ? e.manaEvo : 0);
+                if (t5 === 'thorn') { evo += 19 + 1.4 * (cr > 80 ? cr - 80 : 0); if (cr > 80) cr = 80; }
+                else if (t5 === 'furnace') evo += pFur[j];
+                else evo += t5s;
+                Yc[j] = pW[j] * g[pAi[j]] * (1 + evo / 100)
+                      * critMult(cr / 100, (cdC + pCd[j] + (pDir[j] ? e.dirCd : 0)) / 100, H);
+              }
+              clsScalar[cls] = (1 + (atkBase + (adr ? 6 * (0.9 + stAdr) : 0)) / 100) * e.addF * (blu ? 0.98 : 1);
+            }
+            let dot = 0; const off = si * nP;
+            for (let j = 0; j < nP; j++) dot += Yc[j] * sF[off + j];
+            let tot = clsScalar[cls] * sScalar[si] * dot;
+            if (sRaid[si]) tot *= 1 + msC * sRaid[si] / 100;
+            if (tot > B.score[si]) { B.score[si] = tot; B.e[si] = ei; B.s[si] = xi; }
+          }
+        }
+        done++;
+        if ((done & 15) === 0) yield done / total;
+      }
+    }
+
+    const results = t5List.map((t5, ti) => {
+      const B = best[ti];
+      const order = Array.from({ length: nS }, (_, i) => i).filter(i => B.score[i] > 0)
+        .sort((a, b) => B.score[b] - B.score[a]).slice(0, 4);
+      const picks = order.map(si => {
+        const e = evos[B.e[si]], x = stats[B.s[si]];
+        const build = { engr: sets[si], t1: { crit: x.crit, swift: x.swift, spec }, pet: x.pet,
+                        t2: e.t2, t3: e.t3, t4: e.t4, t5: { id: t5, lv: 2 } };
+        const ev = evalBuild(build, inp), cmp = compare(inp, ev, curEv);
+        return { build, ev, cmp, ratio: cmp.ratio, fast: B.score[si] };
+      });
+      return { t5, picks };
+    });
+    return { cur: curEv, results, nSets: nS, nEvo: evos.length * stats.length, forced, required: requiredEngr(inp, opts) };
+  }
+
+  function runSync(inp, cur, opts) {
+    const it = optimize(inp, cur, opts);
+    let n = it.next();
+    while (!n.done) n = it.next();
+    return n.value;
+  }
+
+  return { K, ENGR, ENGR_ORDER, T2, T3, T4, T5, BRACELET, critMult, critHit, sonicEvo, furnaceEvo, useGain,
+           stoneBonus, forcedEngr, requiredEngr, braceletEffects, context, evalBuild, compare, engravingSets, optimize, runSync };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = LOA;
+</script>
+
+<script id="ui">
+(function () {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  const KEY = 'loa-opt-v1';
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const sk = (name, type, share, r) => ({ name, type, share, r, cr: 0, cd: 0, dir: 'none', p: 80, charge: false, hold: false, mana: 0 });
+
+  function defaults() {
+    const skills = [];
+    for (let i = 1; i <= 8; i++) skills.push(sk('스킬 ' + i, 'normal', 11, 80));
+    skills.push(sk('초각성 스킬', 'hyper', 8, 80), sk('아이덴티티 스킬', 'identity', 0, 0), sk('각성기', 'awakening', 4, 80));
+    return {
+      baseCrit: 0, baseSwift: 0, extraAS: 0, extraMS: 0, otherCR: 0, otherCD: 0, otherAdd: 30, otherAtk: 0, otherH: 0,
+      karma: 6, otherEvo: 0, syn10: false, syn20: false,
+      bracelet: { grade: 'ancient', slots: [{ id: 'none', tier: 2 }, { id: 'none', tier: 2 }, { id: 'none', tier: 2 }] },
+      stone: [{ id: 'none', lv: 0 }, { id: 'none', lv: 0 }],
+      skills,
+      cur: { engr: ['grudge', 'blunt', 'adrenaline', 'raid', 'doll'], t1: { crit: 30, spec: 0, swift: 10 }, pet: 'crit',
+             t2: { endless: 0, forbidden: 0, keen: 0, limit: 3, optim: 0 },
+             t3: { infinite: 0, allout: 2, strike: 0, tank: 0, timing: 0 },
+             t4: { crit: true, master: false, crush: true }, t5: { id: 'stand', lv: 2 } },
+      opt: { tenacity: false, barricade: false, mass: false, spec: 0, pet: 'auto' }
+    };
+  }
+  let state = defaults();
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) { const s = JSON.parse(raw); if (s && Array.isArray(s.skills) && s.skills.length === 11 && s.cur && s.opt) {
+      state = Object.assign(defaults(), s);
+      delete state.asm;
+    } }
+  } catch (e) { /* 저장소를 못 쓰는 환경에서는 기본값으로 시작 */ }
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+
+  const get = path => path.split('.').reduce((o, k) => o[k], state);
+  function set(path, v) {
+    const ks = path.split('.'), last = ks.pop();
+    ks.reduce((o, k) => o[k], state)[last] = v;
+  }
+  const al = o => (o && o.al ? ` aria-label="${esc(o.al)}"` : '');
+  const numIn = (path, o) => `<input type="number" data-b="${path}" value="${get(path)}" step="${(o && o.step) || 'any'}"`
+    + `${o && o.min !== undefined ? ` min="${o.min}"` : ''}${o && o.max !== undefined ? ` max="${o.max}"` : ''}${al(o)}${o && o.dis ? ' disabled' : ''}>`;
+  const chk = (path, o) => `<input type="checkbox" data-b="${path}"${get(path) ? ' checked' : ''}${al(o)}${o && o.dis ? ' disabled' : ''}>`;
+  const sel = (path, opts, o) => `<select data-b="${path}"${o && o.n ? ' data-n="1"' : ''}${o && o.rr ? ` data-rr="${o.rr}"` : ''}${al(o)}${o && o.dis ? ' disabled' : ''}>`
+    + opts.map(([v, t]) => `<option value="${v}"${String(get(path)) === String(v) ? ' selected' : ''}>${esc(t)}</option>`).join('') + '</select>';
+  const field = (label, hint, html) => `<label class="f"><b>${label}</b>${html}${hint ? `<span class="hint">${hint}</span>` : ''}</label>`;
+  const engrOpts = (none) => (none ? [['none', none]] : []).concat(LOA.ENGR_ORDER.map(id => [id, LOA.ENGR[id].name]));
+
+  function renderChar() {
+    $('#char').innerHTML = `<h2>캐릭터 기본 정보</h2>
+      <p class="desc">스탯은 <b>아크패시브와 펫을 모두 뺀 값</b>(기본 스탯 + 팔찌)을 입력합니다. 팔찌 특수 옵션과 어빌리티 스톤은 아래 칸에서 따로 고릅니다.</p>
+      <div class="grid">
+        ${field('기본 치명', '아크패시브·펫 제외, 팔찌 포함', numIn('baseCrit', { min: 0, step: 1 }))}
+        ${field('기본 신속', '아크패시브·펫 제외, 팔찌 포함', numIn('baseSwift', { min: 0, step: 1 }))}
+        ${field('추가 공격 속도 %', '자버프·트포·만찬·아크 그리드 등. 신속, 팔찌, 각인, 아크패시브, 서포터 버프는 제외', numIn('extraAS'))}
+        ${field('추가 이동 속도 %', '위와 같은 기준', numIn('extraMS'))}
+        ${field('기타 치명타 적중률 %', '반지 연마, 아크 그리드 등 모든 스킬 공통분', numIn('otherCR'))}
+        ${field('기타 치명타 피해 %', '반지 연마, 아크 그리드 등. 기본 200%에 더해짐', numIn('otherCD'))}
+        ${field('기타 치명타 적중 시 피해 %', '아크 그리드 코어, 약점 공략 시너지 등 (팔찌·회심 제외). 회심·팔찌와 곱연산', numIn('otherH'))}
+        ${field('기타 추가 피해 %', '무기 품질, 목걸이 연마, 아크 그리드 젬, 펫 특기 등 (팔찌·달인 제외)', numIn('otherAdd'))}
+        ${field('기타 공격력 증가 %', '귀걸이 연마, 아크 그리드 젬 등 공격력 % 합. 아드레날린과 합연산', numIn('otherAtk'))}
+        ${field('진화 카르마 랭크', '랭크당 진화형 피해 +1%', numIn('karma', { min: 0, max: 6, step: 1 }))}
+        ${field('기타 진화형 피해 %', '아크패시브·카르마·서포터 외 출처가 있을 때', numIn('otherEvo'))}
+      </div>
+      <div class="grp"><b>파티 시너지</b>
+        <label class="c">${chk('syn10')} 치명타 적중률 +10%</label>
+        <label class="c">${chk('syn20')} 치명타 적중률 +20%</label>
+      </div>`;
+  }
+
+  function renderBracelet() {
+    const g = state.bracelet.grade;
+    const tiers = id => {
+      const o = LOA.BRACELET[id];
+      if (!o || !o[g]) return [[2, '—']];
+      const u = o.unit === undefined ? '%' : o.unit;
+      return ['하', '중', '상'].map((t, i) => [i, `${t} (${o[g][i]}${u})`]);
+    };
+    const opts = Object.keys(LOA.BRACELET).map(id => [id, LOA.BRACELET[id].name + (id !== 'none' && !LOA.BRACELET[id].eff ? ' · 비교에 영향 없음' : '')]);
+    $('#bracelet').innerHTML = `<h2>팔찌 특수 옵션 <small>최대 3개</small></h2>
+      <p class="desc">"비교에 영향 없음" 옵션은 모든 세팅에 똑같이 곱해져서 추천 결과를 바꾸지 않습니다.</p>
+      <div class="row" style="margin-bottom:10px">${field('팔찌 등급', '', sel('bracelet.grade', [['ancient', '고대'], ['relic', '유물']], { rr: 'bracelet' }))}</div>
+      ${state.bracelet.slots.map((s, i) => `<div class="row" style="margin-bottom:8px">
+        <label class="f" style="flex:3 1 220px"><b>옵션 ${i + 1}</b>${sel(`bracelet.slots.${i}.id`, opts, { rr: 'bracelet' })}</label>
+        <label class="f" style="flex:1 1 110px"><b>수치</b>${sel(`bracelet.slots.${i}.tier`, tiers(s.id), { n: 1, dis: s.id === 'none' })}</label>
+      </div>`).join('')}`;
+  }
+
+  function renderStone() {
+    const lv = [[0, '활성 없음'], [1, 'Lv.1 (6)'], [2, 'Lv.2 (7)'], [3, 'Lv.3 (9)'], [4, 'Lv.4 (10)']];
+    const dup = state.stone[0].id !== 'none' && state.stone[0].id === state.stone[1].id;
+    $('#stone').innerHTML = `<h2>어빌리티 스톤</h2>
+      <p class="desc">스톤에 새겨진 두 각인은 <b>추천 각인에 반드시 포함</b>됩니다. 감소 효과는 계산하지 않습니다.</p>
+      ${state.stone.map((s, i) => `<div class="row" style="margin-bottom:8px">
+        <label class="f" style="flex:2 1 160px"><b>각인 ${i + 1}</b>${sel(`stone.${i}.id`, engrOpts('없음'), { rr: 'stone' })}</label>
+        <label class="f" style="flex:1 1 110px"><b>레벨</b>${sel(`stone.${i}.lv`, lv, { n: 1, dis: s.id === 'none' })}</label>
+      </div>`).join('')}
+      ${dup ? '<p class="warn">두 칸에 같은 각인이 들어 있습니다. 첫 번째 칸만 반영합니다.</p>' : ''}`;
+  }
+
+  function renderSkills() {
+    const dirs = [['none', '없음'], ['back', '백어택'], ['head', '헤드어택']];
+    const rows = state.skills.map((s, i) => {
+      const awk = s.type === 'awakening', dir = s.dir !== 'none', L = t => `${i + 1}행 ${t}`;
+      return `<tr>
+        <td><input type="text" data-b="skills.${i}.name" value="${esc(s.name)}" aria-label="${i + 1}행 스킬 이름"></td>
+        <td>${numIn(`skills.${i}.share`, { min: 0, al: L('딜지분 %') })}</td>
+        <td>${numIn(`skills.${i}.r`, { min: 0, max: 100, al: L('쿨타임 소화 %') })}</td>
+        <td>${numIn(`skills.${i}.cr`, { al: L('기본 치적 %') })}</td>
+        <td>${numIn(`skills.${i}.cd`, { al: L('트포 치피 %') })}</td>
+        <td>${sel(`skills.${i}.dir`, dirs, { rr: 'skills', dis: awk, al: L('방향') })}</td>
+        <td>${dir ? numIn(`skills.${i}.p`, { min: 0, max: 100, al: L('방향 성공 %') }) : '<span class="hint">—</span>'}</td>
+        <td class="ck">${chk(`skills.${i}.charge`, { dis: awk, al: L('차지') })}</td>
+        <td class="ck">${chk(`skills.${i}.hold`, { dis: awk, al: L('홀딩·캐스팅') })}</td>
+        <td>${numIn(`skills.${i}.mana`, { min: 0, step: 1, dis: awk, al: L('마나 소모량') })}</td>
+      </tr>`;
+    }).join('');
+    $('#skills').innerHTML = `<h2>스킬 정보 <small>스킬 8개 · 초각성 스킬 · 아이덴티티 스킬 · 각성기</small></h2>
+      <p class="desc"><b>기본 치적</b>은 트라이포드 등 스킬 자체 수치만 넣습니다. <b>백어택 보정(+10%)은 넣지 마세요.</b> 방향을 "백어택"으로 고르면 성공 비율만큼 자동으로 더합니다.
+      딜지분과 쿨타임 소화 비율(전투 시간 중 그 스킬의 쿨타임이 돌고 있는 시간의 비율)은 현재 세팅에서 측정한 값을 넣습니다. 쓰지 않는 줄은 딜지분을 0으로 두세요.</p>
+      <div class="tw"><table>
+        <thead><tr><th>스킬</th><th>딜지분 %</th><th>쿨타임 소화 %</th><th>기본 치적 %</th><th>트포 치피 +%</th>
+          <th>방향</th><th>방향 성공 %</th><th>차지</th><th>홀딩·캐스팅</th><th>마나 소모량</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><td>합계</td><td id="shareSum" colspan="9"></td></tr></tfoot>
+      </table></div>
+      <p class="hint" style="margin:8px 0 0">마나 소모량은 증감 전 기본 소모량입니다. 마나를 쓰지 않는 스킬은 0. 각성기는 방향·차지·마나 설정을 쓰지 않습니다.</p>`;
+    shareSum();
+  }
+  function shareSum() {
+    const t = state.skills.reduce((a, s) => a + Math.max(0, Number(s.share) || 0), 0);
+    const el = $('#shareSum');
+    if (el) el.textContent = `${+t.toFixed(2)}%` + (Math.abs(t - 100) > 0.01 ? ' · 100%가 아니면 비율대로 환산해 계산합니다' : '');
+  }
+
+  function renderCurrent() {
+    const c = state.cur, lv = n => Array.from({ length: n + 1 }, (_, i) => [i, 'Lv.' + i]);
+    const t1sum = c.t1.crit + c.t1.spec + c.t1.swift;
+    const t2sum = Object.values(c.t2).reduce((a, b) => a + b, 0), t3sum = Object.values(c.t3).reduce((a, b) => a + b, 0);
+    const t4sum = Object.values(c.t4).filter(Boolean).length;
+    const warn = [];
+    if (t1sum > 40) warn.push(`1티어 합계가 ${t1sum}포인트입니다 (최대 40).`);
+    if (t2sum > 3) warn.push(`2티어가 ${t2sum}레벨입니다 (최대 3레벨 = 30포인트).`);
+    if (t3sum > 2) warn.push(`3티어가 ${t3sum}레벨입니다 (최대 2레벨 = 20포인트).`);
+    if (t4sum > 2) warn.push('4티어는 2개까지 고를 수 있습니다.');
+    const t5o = [['none', '없음']].concat(Object.keys(LOA.T5).map(k => [k, LOA.T5[k].name]));
+    $('#current').innerHTML = `<h2>현재 세팅 <small>딜지분과 쿨타임 소화 비율을 측정했을 때의 세팅</small></h2>
+      <p class="desc">추천 결과는 이 세팅과 비교한 값으로 표시됩니다. 스톤 효과는 위에서 고른 스톤이 자동으로 반영됩니다.</p>
+      <div class="grp"><b>각인</b><div class="grid">${c.engr.map((_, i) => `<label class="f">${sel(`cur.engr.${i}`, engrOpts('없음 / 기타'))}</label>`).join('')}</div></div>
+      <div class="grp"><b>진화 1티어 (포인트)와 펫</b><div class="grid">
+        ${field('치명', '', numIn('cur.t1.crit', { min: 0, max: 30, step: 1 }))}
+        ${field('특화', '', numIn('cur.t1.spec', { min: 0, max: 30, step: 1 }))}
+        ${field('신속', '', numIn('cur.t1.swift', { min: 0, max: 30, step: 1 }))}
+        ${field('펫 효과 (+160)', '', sel('cur.pet', [['crit', '치명'], ['swift', '신속'], ['spec', '특화']]))}
+      </div></div>
+      <div class="grp"><b>진화 2티어</b><div class="grid">${Object.keys(LOA.T2).map(k => field(LOA.T2[k].name, '', sel(`cur.t2.${k}`, lv(LOA.T2[k].max), { n: 1, rr: 'current' }))).join('')}</div></div>
+      <div class="grp"><b>진화 3티어</b><div class="grid">${Object.keys(LOA.T3).map(k => field(LOA.T3[k].name, '', sel(`cur.t3.${k}`, lv(2), { n: 1, rr: 'current' }))).join('')}</div></div>
+      <div class="grp"><b>진화 4티어</b>${Object.keys(LOA.T4).map(k => `<label class="c"><input type="checkbox" data-b="cur.t4.${k}" data-rr="current"${c.t4[k] ? ' checked' : ''}> ${LOA.T4[k].name}</label>`).join('')}</div>
+      <div class="grp"><b>진화 5티어</b><div class="row">
+        <label class="f" style="flex:2 1 160px">${sel('cur.t5.id', t5o, { rr: 'current' })}</label>
+        <label class="f" style="flex:1 1 100px">${sel('cur.t5.lv', [[1, 'Lv.1'], [2, 'Lv.2']], { n: 1, dis: c.t5.id === 'none' })}</label>
+      </div></div>
+      ${warn.map(w => `<p class="warn">${w}</p>`).join('')}`;
+  }
+
+  function renderOptions() {
+    $('#options').innerHTML = `<h2>추천 조건</h2>
+      <p class="desc">직업 특성상 쓸 수 있는 각인을 체크하세요. <b>체크한 각인은 효율과 상관없이 추천 각인에 반드시 포함됩니다.</b> 질량 증가는 체크하지 않아도, 공격 속도 감소 10%를 받고도 140%가 유지되는 세팅(패널티 전 150% 이상)에서는 후보에 들어갑니다.</p>
+      <div style="margin-bottom:12px">
+        <label class="c">${chk('opt.tenacity')} 달인의 저력</label>
+        <label class="c">${chk('opt.barricade')} 바리케이드</label>
+        <label class="c">${chk('opt.mass')} 질량 증가</label>
+      </div>
+      <div class="grid">
+        ${field('1티어 특화 고정 포인트', '특화에 쓸 포인트. 남은 포인트를 치명·신속에 1포인트 단위로 분배', numIn('opt.spec', { min: 0, max: 30, step: 1 }))}
+        ${field('펫 효과', '', sel('opt.pet', [['auto', '치명 또는 신속 중 추천'], ['spec', '특화 고정']]))}
+      </div>`;
+  }
+
+  const sections = { char: renderChar, bracelet: renderBracelet, stone: renderStone, skills: renderSkills, current: renderCurrent, options: renderOptions };
+  const renderAll = () => Object.values(sections).forEach(f => f());
+
+  function apply(el) {
+    let v;
+    if (el.type === 'checkbox') v = el.checked;
+    else if (el.type === 'number') v = el.value === '' ? 0 : Number(el.value);
+    else if (el.dataset.n) v = Number(el.value);
+    else v = el.value;
+    set(el.dataset.b, v);
+    save();
+    if (el.dataset.b.endsWith('.share')) shareSum();
+  }
+  document.addEventListener('input', e => { const el = e.target.closest('[data-b]'); if (el && el.tagName === 'INPUT' && el.type !== 'checkbox') apply(el); });
+  document.addEventListener('change', e => {
+    const el = e.target.closest('[data-b]'); if (!el) return;
+    apply(el);
+    if (el.dataset.rr) sections[el.dataset.rr]();
+    else if (/^cur\.t1\./.test(el.dataset.b)) renderCurrent();
+  });
+  $('#reset').addEventListener('click', () => {
+    if (!confirm('입력한 내용을 모두 지우고 기본값으로 되돌릴까요?')) return;
+    state = defaults(); save(); renderAll(); $('#results').hidden = true;
+  });
+
+  // ---------- 결과 ----------
+  const pct = (r, d) => `${r >= 1 ? '+' : '−'}${Math.abs((r - 1) * 100).toFixed(d === undefined ? 2 : d)}%`;
+  const f1 = x => (+x.toFixed(1)).toString();
+  function buildLines(b) {
+    const lv = (def, obj) => Object.keys(def).filter(k => obj[k] > 0).map(k => `${def[k].name} ${obj[k]}`).join(' · ') || '없음';
+    const pet = { crit: '치명', swift: '신속', spec: '특화' }[b.pet];
+    return [
+      ['1티어', `치명 ${b.t1.crit} · 신속 ${b.t1.swift}${b.t1.spec ? ` · 특화 ${b.t1.spec}` : ''}`],
+      ['펫', pet],
+      ['2티어', lv(LOA.T2, b.t2)], ['3티어', lv(LOA.T3, b.t3)],
+      ['4티어', Object.keys(LOA.T4).filter(k => b.t4[k]).map(k => LOA.T4[k].name).join(' · ') || '없음']
+    ];
+  }
+  function summary(ev) {
+    const sum = state.skills.reduce((a, s) => a + Math.max(0, s.share), 0) || 1;
+    const avg = key => state.skills.reduce((a, s, i) => a + Math.max(0, s.share) * ev.rows[i][key], 0) / sum;
+    const c = ev.ctx, sp = v => v > 40 ? `140% (초과 ${f1(v - 40)}%p)` : `${f1(100 + v)}%`;
+    return [
+      ['스탯', `치명 ${Math.round(c.critStat)} · 신속 ${Math.round(c.swiftStat)}`],
+      ['평균 치적', `${f1(avg('cr'))}%${c.t5.id === 'thorn' ? ' (80% 초과분은 전환)' : ''}`],
+      ['평균 치피', `${f1(avg('cd'))}%`],
+      ['평균 진화형 피해', `${f1(avg('evo'))}%`],
+      ['공격 속도', sp(c.AS)], ['이동 속도', sp(c.MS)],
+      ['신속 쿨감', `${f1(c.swiftCdr * 100)}%`]
+    ];
+  }
+  const dl = rows => `<dl>${rows.map(([a, b]) => `<dt>${a}</dt><dd>${esc(b)}</dd>`).join('')}</dl>`;
+  const chips = (ids, forced, req) => `<div class="chips">${ids.map(id => {
+    const st = forced.includes(id), rq = !st && req.includes(id);
+    return `<span class="chip${st ? ' st' : rq ? ' rq' : ''}">${LOA.ENGR[id].name}${st ? ' ★' : rq ? ' ✓' : ''}</span>`;
+  }).join('')}</div>`;
+
+  function skillTable(pick, cur) {
+    const rows = state.skills.map((s, i) => {
+      if (!(s.share > 0)) return '';
+      const a = cur.rows[i], b = pick.ev.rows[i], p = pick.cmp.per[i];
+      return `<tr><td>${esc(s.name)}</td><td class="num">${f1(a.cr)} → ${f1(b.cr)}</td><td class="num">${f1(a.cd)} → ${f1(b.cd)}</td>
+        <td class="num">${f1(a.evo)} → ${f1(b.evo)}</td><td class="num">${pct(p.dmg, 1)}</td><td class="num">${pct(p.use, 1)}</td></tr>`;
+    }).join('');
+    return `<details><summary>스킬별 변화 보기 (현재 → 추천)</summary><div class="tw"><table>
+      <thead><tr><th>스킬</th><th class="num">치적 %</th><th class="num">치피 %</th><th class="num">진화형 피해 %</th><th class="num">1회 피해</th><th class="num">사용 횟수</th></tr></thead>
+      <tbody>${rows}</tbody></table></div></details>`;
+  }
+
+  function curTable(cur) {
+    const rows = state.skills.map((s, i) => {
+      if (!(s.share > 0)) return '';
+      const a = cur.rows[i];
+      return `<tr><td>${esc(s.name)}</td><td class="num">${f1(a.hit)}</td><td class="num">${f1(a.multi)}</td>
+        <td class="num">${f1(a.cd)}</td><td class="num">${f1(a.evo)}</td></tr>`;
+    }).join('');
+    return `<details><summary>현재 세팅의 스킬별 예상 수치 보기 (전투 분석기와 대조용)</summary><div class="tw"><table>
+      <thead><tr><th>스킬</th><th class="num">치명타 적중률 %</th><th class="num">다중 치명타 적중률 %</th><th class="num">치명타 피해 %</th><th class="num">진화형 피해 %</th></tr></thead>
+      <tbody>${rows}</tbody></table></div></details>`;
+  }
+
+  function renderResults(res, ms) {
+    const el = $('#results');
+    el.hidden = false;
+    if (!res.results.length) { el.innerHTML = '<h2>결과</h2><p class="warn">딜지분이 입력된 스킬이 없습니다.</p>'; return; }
+    const sorted = res.results.filter(r => r.picks.length).sort((a, b) => b.picks[0].ratio - a.picks[0].ratio);
+    const cards = sorted.map((r, i) => {
+      const p = r.picks[0];
+      const auto = p.build.engr.includes('mass') && !state.opt.mass && !res.forced.includes('mass');
+      return `<div class="card${i === 0 ? ' best' : ''}">
+        <h3>${LOA.T5[r.t5].name}${i === 0 ? '<span class="badge">최적</span>' : ''}</h3>
+        <div class="gain ${p.ratio >= 1 ? 'pos' : 'neg'}">${pct(p.ratio)}</div>
+        ${chips(p.build.engr, res.forced, res.required)}
+        ${auto ? '<p class="hint" style="margin:-4px 0 8px">질량 증가: 공격 속도 여유가 있어 패널티 없이 채용</p>' : ''}
+        ${dl(buildLines(p.build))}
+        <div class="alt">${dl(summary(p.ev))}</div>
+        ${r.picks.length > 1 ? `<div class="alt"><b>다른 각인 조합</b>${r.picks.slice(1).map(q =>
+          `<div><span>${q.build.engr.map(id => LOA.ENGR[id].name).join(', ')}</span><span>${pct(q.ratio)}</span></div>`).join('')}</div>` : ''}
+        ${skillTable(p, res.cur)}
+      </div>`;
+    }).join('');
+    const top = sorted[0], second = sorted[1];
+    const lead = second ? `<b>${LOA.T5[top.t5].name}</b> 세팅이 가장 높고, 2위 ${LOA.T5[second.t5].name}보다 ${((top.picks[0].ratio / second.picks[0].ratio - 1) * 100).toFixed(2)}% 높습니다.` : '';
+    el.innerHTML = `<h2>추천 결과 <small>현재 세팅 대비 기대 DPS 변화</small></h2>
+      <p class="desc">${lead} 각 카드는 그 5티어 노드를 골랐을 때의 최적 각인·진화 조합입니다. ★는 어빌리티 스톤 각인, ✓는 추천 조건에서 체크한 각인입니다.
+      (각인 조합 ${res.nSets}개 × 진화 조합 ${(res.nEvo * res.results.length).toLocaleString()}개 전수 탐색, ${(ms / 1000).toFixed(1)}초)</p>
+      <div class="cards">${cards}</div>
+      <div class="alt"><b style="color:var(--ink)">현재 세팅 지표</b>${dl(summary(res.cur))}${curTable(res.cur)}</div>`;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  $('#run').addEventListener('click', async () => {
+    const btn = $('#run'), prog = $('#prog'), status = $('#status');
+    btn.disabled = true; status.textContent = '계산 중…'; prog.style.width = '0';
+    const t0 = performance.now();
+    try {
+      const cur = Object.assign({}, state.cur, { engr: state.cur.engr.filter(id => LOA.ENGR[id]) });
+      const it = LOA.optimize(state, cur, state.opt);
+      let n = it.next(), last = performance.now();
+      while (!n.done) {
+        if (performance.now() - last > 40) {
+          prog.style.width = (n.value * 100).toFixed(1) + '%';
+          await new Promise(r => setTimeout(r, 0));
+          last = performance.now();
+        }
+        n = it.next();
+      }
+      prog.style.width = '100%';
+      renderResults(n.value, performance.now() - t0);
+      status.textContent = '완료';
+    } catch (err) {
+      status.textContent = '계산 중 오류: ' + err.message;
+      console.error(err);
+    }
+    btn.disabled = false;
+  });
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
