@@ -16,7 +16,7 @@ const saved = () => JSON.parse(localStorage.getItem(KEY));
 const get = (o, p) => p.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);
 const fmt = r => `${r >= 1 ? '+' : '−'}${Math.abs((r - 1) * 100).toFixed(2)}%`;
 const runAndWait = async () => { q('#run').click(); for (let i = 0; i < 600; i++) { await sleep(50); if (!q('#run').disabled) break; } await sleep(50); };
-const engineResult = () => { const st = saved(); const cur = Object.assign({}, st.cur, { engr: st.cur.engr.filter(id => LOA.ENGR[id]) }); return LOA.runSync(st, cur, st.opt); };
+const engineResult = () => { const st = saved(); const cur = Object.assign({}, st.cur, { engr: st.cur.engr.filter(id => LOA.ENGR[id]) }); return LOA.runSync(st, cur, Object.assign({}, st.opt, { fix: st.fix })); };
 const bad = t => /NaN|undefined|Infinity|\[object/.test(t);
 
 if (phase === 1) {
@@ -119,8 +119,8 @@ if (phase === 1) {
   ok('현재 펫 반영', saved().cur.pet === 'swift');
 
   // 추천 조건
-  setVal('opt.spec', 5); setChk('opt.tenacity', true); setVal('opt.pet', 'auto');
-  ok('추천 조건 반영', saved().opt.spec === 5 && saved().opt.tenacity === true && saved().opt.mass === false);
+  setVal('fix.t1.spec', 5); setChk('opt.tenacity', true);
+  ok('추천 조건 반영', saved().fix.t1.spec === 5 && saved().opt.tenacity === true && saved().opt.mass === false && saved().opt.spec === undefined);
   ok('제거한 "계산 가정" 영역 없음', !/계산 가정/.test(q('#options').innerText));
 
   // 계산 실행
@@ -152,7 +152,7 @@ if (phase === 1) {
   ok('결과에 NaN·undefined 없음', !bad(q('#results').innerText));
   ok('스킬 이름의 HTML은 실행되지 않음', window.__xss === undefined && !q('#results img') && !q('#skills td img'));
   ok('스킬 이름은 글자 그대로 표시 (접힌 표 포함)', q('#results').textContent.includes('<img src=x onerror="window.__xss=1"><b>굵게</b>'));
-  ok('설명 문구에 탐색 규모 표시', /각인 조합 \d+개 × 진화 조합 [\d,]+개 전수 탐색/.test(q('#results .desc').textContent));
+  ok('설명 문구에 탐색 규모 표시', /각인 조합 \d+개 × 진화 조합 [\d,]+개 전수 탐색/.test(qa('#results .desc').map(e => e.textContent).join(' ')));
 
   // 빈 칸, 연타, 지분 0
   setVal('baseCrit', '');
@@ -177,7 +177,7 @@ if (phase === 2) {
   ok('새로고침 후 숫자 복원', b('baseCrit').value === '777' && b('otherH').value === '1.1' && b('extraMS').value === '-3');
   ok('새로고침 후 스킬 복원 (방향·성공률·체크)', b('skills.0.dir').value === 'back' && b('skills.0.p').value === '65' && b('skills.0.charge').checked && b('skills.1.dir').value === 'head');
   ok('새로고침 후 팔찌·스톤 복원', b('bracelet.grade').value === 'relic' && b('bracelet.slots.0.id').value === 'crH' && b('bracelet.slots.0.tier').value === '1' && b('stone.0.id').value === 'blunt' && b('stone.1.lv').value === '3');
-  ok('새로고침 후 현재 세팅·조건 복원', b('cur.pet').value === 'swift' && b('opt.spec').value === '5' && b('opt.tenacity').checked);
+  ok('새로고침 후 현재 세팅·조건 복원', b('cur.pet').value === 'swift' && b('fix.t1.spec').value === '5' && b('opt.tenacity').checked);
   ok('새로고침 후 시너지 복원', b('syn10').checked && !b('syn20').checked);
   ok('새로고침 후 결과는 숨김', q('#results').hidden);
   ok('저장된 스킬 이름의 HTML은 새로고침 후에도 실행되지 않음', window.__xss === undefined && !q('#skills td img') && b('skills.2.name').value.startsWith('<img'));
@@ -187,7 +187,7 @@ if (phase === 2) {
   window.confirm = () => true; q('#reset').click();
   ok('초기화 후 기본값', b('baseCrit').value === '0' && b('skills.0.dir').value === 'none' && b('bracelet.grade').value === 'ancient' && b('stone.0.id').value === 'none' && !b('syn10').checked);
   ok('초기화 후 결과 숨김', q('#results').hidden);
-  ok('초기화 후 저장소도 기본값', saved().baseCrit === 0 && saved().skills[2].name === '스킬 3' && saved().opt.spec === 0);
+  ok('초기화 후 저장소도 기본값', saved().baseCrit === 0 && saved().skills[2].name === '스킬 3' && saved().fix.t1.spec === 0 && /고정 없음/.test(q('#fixed summary').textContent));
   localStorage.setItem(KEY, '{bad json');
 }
 
@@ -197,14 +197,16 @@ if (phase === 3) {
   const old = saved();
   old.asm = { support: false, hAdd: true, awkEvo: false, awkSwift: false };
   delete old.otherH;
+  delete old.fix; old.opt.spec = 7; old.opt.pet = 'spec';
   localStorage.setItem(KEY, JSON.stringify(old));
 }
 
 if (phase === 4) {
   ok('이전 형식(가정 옵션 포함, 새 입력칸 없음)의 저장값을 읽음', b('baseCrit').value === '555');
   ok('없던 입력칸은 기본값 0', b('otherH').value === '0');
+  ok('예전의 특화 고정 포인트·펫 설정이 고정 메뉴로 옮겨짐', b('fix.t1.spec').value === '7' && b('fix.pet').value === 'spec' && !b('opt.spec') && !b('opt.pet'));
   setVal('otherCR', 1);
-  ok('다시 저장하면 가정 옵션이 사라지고 새 칸이 생김', saved().asm === undefined && saved().otherH === 0);
+  ok('다시 저장하면 가정 옵션이 사라지고 새 칸이 생김', saved().asm === undefined && saved().otherH === 0 && saved().opt.spec === undefined && saved().fix.t1.spec === 7);
   await runAndWait();
   ok('이전 형식에서도 계산 정상', qa('#results .card').length === 4 && !bad(q('#results').innerText));
   const wrong = saved(); wrong.skills = wrong.skills.slice(0, 3);
@@ -235,8 +237,8 @@ if (phase === 7) {   // 특화 고정 30 + 특화 펫, 체크 각인 3종
   localStorage.removeItem(KEY);
   setVal('baseCrit', 300); setVal('baseSwift', 250); setVal('extraAS', 15);
   setVal('skills.0.dir', 'back'); setVal('skills.1.mana', 300);
-  setVal('opt.spec', 30); setVal('opt.pet', 'spec');
-  ok('추천 조건 저장: 특화 30, 펫 특화', saved().opt.spec === 30 && saved().opt.pet === 'spec');
+  setVal('fix.t1.spec', 30); setVal('fix.pet', 'spec');
+  ok('고정 메뉴 저장: 특화 30, 펫 특화', saved().fix.t1.spec === 30 && saved().fix.pet === 'spec');
   await runAndWait();
   let cards = qa('#results .card');
   const er = engineResult(), sorted = er.results.filter(r => r.picks.length).sort((a, c) => c.picks[0].ratio - a.picks[0].ratio);
@@ -251,8 +253,77 @@ if (phase === 7) {   // 특화 고정 30 + 특화 펫, 체크 각인 3종
   ok('세 각인 체크 → 모든 카드에 ✓ 세 개', cards.length === 4 && cards.every(c => [...c.querySelectorAll('.chip.rq')].map(x => x.textContent).sort().join() === '달인의 저력 ✓,바리케이드 ✓,질량 증가 ✓'));
   ok('다른 각인 조합에도 세 각인 포함', cards.every(c => [...c.querySelectorAll('.alt div span:first-child')].every(x => ['달인의 저력', '바리케이드', '질량 증가'].every(n => x.textContent.includes(n)))));
   ok('체크한 질량 증가에는 "자동 채용" 안내 없음', !/패널티 없이 채용/.test(q('#results').innerText));
-  ok('안내 문구에 ✓ 설명', /✓는 추천 조건에서 체크한 각인/.test(q('#results .desc').textContent));
+  ok('안내 문구에 ✓ 설명', /✓는 추천 조건에서 체크한 각인/.test(qa('#results .desc').map(e => e.textContent).join(' ')));
   ok('추천 조건 설명: 반드시 포함', /체크한 각인은 효율과 상관없이 추천 각인에 반드시 포함/.test(q('#options').innerText));
+  localStorage.removeItem(KEY);
+}
+
+if (phase === 8) {   // 고정할 아크패시브 노드 (저장소를 비우고 새로 연 상태에서 시작)
+  const gains = () => qa('#results .card').map(c => c.querySelector('.gain').textContent).join();
+  const sortedEr = () => engineResult().results.filter(r => r.picks.length).sort((a, c) => c.picks[0].ratio - a.picks[0].ratio);
+  let det = q('#fixed details');
+  ok('고정 메뉴가 추천 조건과 결과 영역 사이에 있음', !!det && !!(q('#options').compareDocumentPosition(q('#fixed')) & 4) && !!(q('#fixed').compareDocumentPosition(q('#results')) & 4));
+  ok('처음에는 접혀 있고 "고정 없음"', !det.open && /고정 없음/.test(q('#fixed summary').textContent) && /눌러서 펼치기/.test(q('#fixed summary').textContent));
+  det.open = true; await sleep(60);
+  ok('펼치면 안내가 "눌러서 접기"로 바뀜', /눌러서 접기/.test(q('#fixed summary').textContent));
+  ok('입력 구성: 1티어 3 + 펫 + 2티어 5 + 3티어 5 + 4티어 3 + 5티어 = 18칸', qa('#fixed [data-b^="fix."]').length === 18);
+  ok('현재 세팅 입력과 같은 노드 구성', ['endless', 'forbidden', 'keen', 'limit', 'optim'].every(k => b('fix.t2.' + k)) && ['infinite', 'allout', 'strike', 'tank', 'timing'].every(k => b('fix.t3.' + k)) && ['crit', 'master', 'crush'].every(k => b('fix.t4.' + k)));
+  ok('한계 돌파만 Lv.3까지 고를 수 있음', b('fix.t2.limit').options.length === 4 && b('fix.t2.keen').options.length === 3);
+  ok('추천 조건에서 특화·펫 칸이 사라짐', !b('opt.spec') && !b('opt.pet'));
+
+  setVal('fix.t3.strike', 2);
+  ok('값을 고른 뒤에도 메뉴가 펼쳐진 채', q('#fixed details').open);
+  ok('요약에 "1개 고정됨"', /1개 고정됨/.test(q('#fixed summary').textContent));
+  ok('"현재 고정: 일격 Lv.2 이상" 표시', /현재 고정: 일격 Lv\.2 이상/.test(q('#fixed').textContent));
+  ok('기본 스킬은 모두 비방향성 (일격 치피가 무의미한 상황)', saved().skills.every(s => s.dir === 'none'));
+  await runAndWait();
+  let cards = qa('#results .card');
+  ok('방향성 스킬이 없어도 모든 카드에 "일격 2 (고정)"', cards.length === 4 && cards.every(c => c.innerText.includes('일격 2 (고정)')));
+  ok('결과 위에 "고정 반영: 일격 Lv.2 이상"', !!q('#fixedNote') && q('#fixedNote').textContent.includes('일격 Lv.2 이상'));
+  ok('이득 수치 = 엔진 결과', gains() === sortedEr().map(r => fmt(r.picks[0].ratio)).join());
+  ok('엔진 결과의 모든 추천이 일격 2', engineResult().results.every(r => r.picks.every(p => p.build.t3.strike === 2)));
+
+  setChk('fix.t4.master', true); setVal('fix.t1.crit', 25); setVal('fix.pet', 'swift'); setVal('fix.t2.endless', 1);
+  ok('요약에 "5개 고정됨"', /5개 고정됨/.test(q('#fixed summary').textContent), q('#fixed summary').textContent);
+  await runAndWait();
+  cards = qa('#results .card');
+  const er = engineResult();
+  ok('여러 고정을 모두 지킴 (엔진)', er.results.length === 4 && er.results.every(r => r.picks.every(p => p.build.t3.strike === 2 && p.build.t4.master && p.build.t1.crit >= 25 && p.build.pet === 'swift' && p.build.t2.endless >= 1)));
+  ok('카드에 고정 표시: 달인, 치명, 펫, 끝없는 마나', cards.length === 4 && cards.every(c => /달인 \(고정\)/.test(c.innerText) && /치명 \d+ \(고정\)/.test(c.innerText) && /신속 \(고정\)/.test(c.innerText) && /끝없는 마나 \d \(고정\)/.test(c.innerText)));
+  ok('고정하지 않은 노드에는 표시 없음', cards.every(c => !/회심 \(고정\)|분쇄 \(고정\)|한계 돌파 \d \(고정\)/.test(c.innerText)));
+  ok('이득 수치 = 엔진 결과 (여러 고정)', gains() === sortedEr().map(r => fmt(r.picks[0].ratio)).join());
+
+  setVal('fix.t5', 'stand');
+  await runAndWait();
+  cards = qa('#results .card');
+  ok('5티어 고정 → 카드 1장 (입식 타격가)', cards.length === 1 && cards[0].querySelector('h3').textContent.startsWith('입식 타격가'));
+  ok('안내 문구: 5티어를 고정한 결과', /5티어를 입식 타격가\(으\)로 고정한 결과/.test(q('#results').innerText));
+  setVal('fix.t5', 'infight');
+  await runAndWait();
+  cards = qa('#results .card');
+  ok('인파이팅 고정 → 카드 1장, 수치 = 엔진', cards.length === 1 && cards[0].querySelector('h3').textContent.startsWith('인파이팅') && gains() === sortedEr().map(r => fmt(r.picks[0].ratio)).join());
+  setVal('fix.t5', 'auto');
+
+  setVal('fix.t2.limit', 3);   // 끝없는 마나 1 + 한계 돌파 3 = 4레벨
+  ok('티어 제한을 넘으면 메뉴에 경고', /2티어 고정 레벨 합이 4/.test(q('#fixed').textContent) && !!q('#fixed .warn'));
+  await runAndWait();
+  ok('넘친 상태로 계산하면 결과 대신 이유 표시', qa('#results .card').length === 0 && /티어 제한을 넘어 계산할 수 없습니다/.test(q('#results').innerText) && /2티어 고정 레벨 합이 4/.test(q('#results').innerText) && q('#status').textContent === '완료' && !q('#run').disabled);
+  setVal('fix.t2.limit', 0);
+  ok('바로잡으면 경고 사라짐', !q('#fixed .warn'));
+  ok('고정값이 저장소에 기록됨', saved().fix.t3.strike === 2 && saved().fix.t4.master === true && saved().fix.t1.crit === 25 && saved().fix.pet === 'swift' && saved().fix.t2.endless === 1 && saved().fix.t5 === 'auto');
+  q('#fixed details').open = false;
+  await runAndWait();
+  ok('메뉴를 접어도 고정은 그대로 반영', qa('#results .card').length === 4 && qa('#results .card').every(c => c.innerText.includes('일격 2 (고정)')));
+  ok('화면에 NaN·undefined 없음', !bad(q('#results').innerText) && !bad(q('#fixed').textContent));
+}
+
+if (phase === 9) {   // 8단계 뒤 새로고침
+  ok('새로고침 후 고정값 복원', b('fix.t3.strike').value === '2' && b('fix.t4.master').checked && b('fix.t1.crit').value === '25' && b('fix.pet').value === 'swift' && b('fix.t2.endless').value === '1');
+  ok('새로고침 후 메뉴는 접혀 있고 "5개 고정됨"', !q('#fixed details').open && /5개 고정됨/.test(q('#fixed summary').textContent));
+  await runAndWait();
+  ok('새로고침 후에도 고정 반영', qa('#results .card').length === 4 && qa('#results .card').every(c => c.innerText.includes('일격 2 (고정)') && /달인 \(고정\)/.test(c.innerText)));
+  window.confirm = () => true; q('#reset').click();
+  ok('초기화하면 고정도 모두 해제', /고정 없음/.test(q('#fixed summary').textContent) && b('fix.t3.strike').value === '0' && !b('fix.t4.master').checked && saved().fix.pet === 'auto');
   localStorage.removeItem(KEY);
 }
 

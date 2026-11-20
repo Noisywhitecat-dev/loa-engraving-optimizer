@@ -430,6 +430,120 @@ T.section('특화 고정 30 + 특화 펫');
   }
 }
 
+T.section('고정한 아크패시브 노드는 반드시 반영');
+{
+  const inp = baseInp({ baseCrit: 200, baseSwift: 150, otherAdd: 30, karma: 6,
+    skills: [skill({ share: 55, r: 85 }), skill({ share: 30, r: 60, mana: 250 }), skill({ share: 15, r: 100, type: 'awakening' })] });
+  const cur = build({ engr: ['grudge', 'blunt', 'adrenaline', 'raid', 'doll'], t1: { crit: 30, spec: 0, swift: 10 }, pet: 'crit', t2: t2({ limit: 3 }), t3: t3({ allout: 2 }), t4: { crit: true, master: false, crush: true }, t5: { id: 'stand', lv: 2 } });
+  const F = (o) => Object.assign({ t1: { crit: 0, spec: 0, swift: 0 }, pet: 'auto', t2: t2({}), t3: t3({}), t4: t4({}), t5: 'auto' }, o);
+  const run = (fix, extra, i) => LOA.runSync(i || inp, cur, Object.assign({ fix }, extra));
+  const picks = res => res.results.flatMap(r => r.picks);
+  const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
+  const free = run(F({}));
+  T.ok('고정 없음: 5티어 4종, 고정 정보는 모두 비어 있음', free.results.length === 4 && free.invalid.length === 0 && free.fix.t5 === 'auto' && sum(free.fix.t2) + sum(free.fix.t3) + sum(free.fix.t1) === 0);
+  T.ok('고정 없음 = 옵션 생략과 같은 결과', JSON.stringify(free.results.map(r => r.picks[0].ratio)) === JSON.stringify(LOA.runSync(inp, cur, {}).results.map(r => r.picks[0].ratio)));
+
+  let res = run(F({ t3: t3({ strike: 2 }) }));
+  T.ok('방향성 스킬이 하나도 없어도 일격 2레벨 고정', res.results.length === 4 && picks(res).length >= 4 && picks(res).every(p => p.build.t3.strike === 2));
+  T.ok('고정하면 최적값은 같거나 낮아짐 (효율과 무관하게 반영)', res.results.every((r, i) => r.picks[0].ratio <= free.results[i].picks[0].ratio + 1e-12));
+  T.ok('고정 없이는 일격 2를 고르지 않던 상황이면 엄격히 낮아짐', picks(free).some(p => p.build.t3.strike === 2) || res.results.every((r, i) => r.picks[0].ratio < free.results[i].picks[0].ratio));
+  res = run(F({ t3: t3({ strike: 1 }) }));
+  T.ok('일격 1레벨 이상: 남은 1레벨은 자유', picks(res).every(p => p.build.t3.strike >= 1 && sum(p.build.t3) === 2));
+  res = run(F({ t2: t2({ endless: 1, optim: 1 }) }));
+  T.ok('2티어 두 노드 고정: 둘 다 1레벨 이상, 합 3레벨', picks(res).every(p => p.build.t2.endless >= 1 && p.build.t2.optim >= 1 && sum(p.build.t2) === 3));
+  res = run(F({ t2: t2({ endless: 2, forbidden: 1 }) }));
+  T.ok('2티어를 3레벨 모두 고정하면 그대로', picks(res).every(p => p.build.t2.endless === 2 && p.build.t2.forbidden === 1 && sum(p.build.t2) === 3));
+  res = run(F({ t4: t4({ master: true }) }));
+  T.ok('4티어 하나 고정: 항상 포함, 나머지 하나는 자유', picks(res).every(p => p.build.t4.master && Object.values(p.build.t4).filter(Boolean).length === 2));
+  res = run(F({ t4: t4({ crit: true, master: true }) }));
+  T.ok('4티어 두 개 고정: 그 둘만', picks(res).every(p => p.build.t4.crit && p.build.t4.master && !p.build.t4.crush));
+  res = run(F({ t5: 'stand' }));
+  T.ok('5티어 고정: 그 노드의 결과만', res.results.length === 1 && res.results[0].t5 === 'stand' && picks(res).every(p => p.build.t5.id === 'stand' && p.build.t5.lv === 2));
+  T.near('5티어 고정 결과 = 고정 없을 때 같은 노드의 결과', res.results[0].picks[0].ratio, free.results.find(r => r.t5 === 'stand').picks[0].ratio, 1e-12);
+  res = run(F({ t5: 'infight' }));
+  T.ok('인파이팅도 고정 가능 (진피 18 반영)', res.results.length === 1 && res.results[0].t5 === 'infight' && picks(res).every(p => Math.abs(p.fast - p.ratio) < 1e-9 && p.build.t5.id === 'infight'));
+  T.ok('인파이팅(18) 고정은 입식 타격가(21)보다 낮음', res.results[0].picks[0].ratio < free.results.find(r => r.t5 === 'stand').picks[0].ratio);
+
+  res = run(F({ t1: { crit: 25, spec: 0, swift: 0 } }));
+  T.ok('치명 최소 25포인트', picks(res).every(p => p.build.t1.crit >= 25 && p.build.t1.crit + p.build.t1.swift === 40));
+  res = run(F({ t1: { crit: 0, spec: 0, swift: 22 } }));
+  T.ok('신속 최소 22포인트', picks(res).every(p => p.build.t1.swift >= 22 && p.build.t1.crit + p.build.t1.swift === 40));
+  res = run(F({ t1: { crit: 0, spec: 12, swift: 0 } }));
+  T.ok('특화 12포인트 고정: 치명 + 신속 = 28', picks(res).every(p => p.build.t1.spec === 12 && p.build.t1.crit + p.build.t1.swift === 28));
+  res = run(F({ t1: { crit: 15, spec: 10, swift: 15 } }));
+  T.ok('1티어를 40포인트 모두 고정하면 그대로', picks(res).every(p => p.build.t1.crit === 15 && p.build.t1.swift === 15 && p.build.t1.spec === 10));
+  for (const pet of ['crit', 'swift', 'spec']) {
+    res = run(F({ pet }));
+    T.ok(`펫 ${pet} 고정`, picks(res).length >= 4 && picks(res).every(p => p.build.pet === pet));
+  }
+
+  const all = F({ t1: { crit: 30, spec: 0, swift: 10 }, pet: 'crit', t2: t2({ limit: 3 }), t3: t3({ tank: 2 }), t4: t4({ crit: true, crush: true }), t5: 'thorn' });
+  res = run(all);
+  T.ok('전부 고정하면 진화 조합은 하나뿐', res.nEvo === 1 && res.results.length === 1);
+  T.ok('전부 고정: 추천의 진화 노드가 입력 그대로', picks(res).every(p => p.build.t2.limit === 3 && p.build.t3.tank === 2 && p.build.t4.crit && p.build.t4.crush && p.build.t1.crit === 30 && p.build.pet === 'crit' && p.build.t5.id === 'thorn'));
+  {
+    const evC = LOA.evalBuild(cur, inp);
+    let best = 0;
+    for (const engr of LOA.engravingSets(inp, {}, inp.skills)) {
+      const ev = LOA.evalBuild(build({ engr, t1: { crit: 30, spec: 0, swift: 10 }, pet: 'crit', t2: t2({ limit: 3 }), t3: t3({ tank: 2 }), t4: t4({ crit: true, crush: true }), t5: { id: 'thorn', lv: 2 } }), inp);
+      if (engr.includes('mass') && ev.ctx.AS < 40 - EPS) continue;
+      best = Math.max(best, LOA.compare(inp, ev, evC).ratio);
+    }
+    T.near('전부 고정: 각인만 직접 전수 계산한 최댓값과 일치', res.results[0].picks[0].ratio, best, 1e-12);
+  }
+
+  // 불가능한 고정
+  let bad = run(F({ t2: t2({ limit: 3, keen: 1 }) }));
+  T.ok('2티어 4레벨 고정 → 결과 없음 + 이유', bad.results.length === 0 && bad.invalid.length === 1 && /2티어 고정 레벨 합이 4/.test(bad.invalid[0]));
+  bad = run(F({ t3: t3({ strike: 2, tank: 1 }) }));
+  T.ok('3티어 3레벨 고정 → 이유', bad.results.length === 0 && /3티어 고정 레벨 합이 3/.test(bad.invalid[0]));
+  bad = run(F({ t4: t4({ crit: true, master: true, crush: true }) }));
+  T.ok('4티어 3개 고정 → 이유', bad.results.length === 0 && /4티어는 2개까지/.test(bad.invalid[0]));
+  bad = run(F({ t1: { crit: 20, spec: 10, swift: 11 } }));
+  T.ok('1티어 41포인트 고정 → 이유', bad.results.length === 0 && /1티어 고정 포인트 합이 41/.test(bad.invalid[0]));
+  bad = run(F({ t1: { crit: 30, spec: 30, swift: 30 }, t2: t2({ limit: 3, keen: 2 }), t3: t3({ strike: 2, tank: 2 }), t4: t4({ crit: true, master: true, crush: true }) }));
+  T.ok('여러 티어가 동시에 넘치면 이유도 여러 개', bad.invalid.length === 4);
+  T.ok('1티어 40포인트 정확히는 가능', run(F({ t1: { crit: 10, spec: 30, swift: 0 } })).results.length === 4);
+  T.ok('가능한 고정이면 이유 목록은 비어 있음', LOA.checkFix(LOA.normFix({ fix: all })).length === 0);
+
+  // 입력 정리
+  const nf = LOA.normFix({ fix: { t1: { crit: 99, spec: -4, swift: 'x' }, pet: 'dog', t2: { limit: 9, keen: 2.4 }, t3: { strike: -1 }, t4: { crit: 1 }, t5: 'zzz' } });
+  T.ok('범위 밖 값 정리: 상한·0·기본값', nf.t1.crit === 30 && nf.t1.spec === 0 && nf.t1.swift === 0 && nf.pet === 'auto' && nf.t2.limit === 3 && nf.t2.keen === 2 && nf.t3.strike === 0 && nf.t4.crit === true && nf.t4.master === false && nf.t5 === 'auto');
+  T.ok('빈 고정 정보도 처리', LOA.normFix({ fix: {} }).t5 === 'auto' && LOA.normFix(undefined).pet === 'auto' && LOA.normFix({ fix: null, spec: 3 }).t1.spec === 3);
+  const lg = LOA.normFix({ spec: 7, pet: 'spec' });
+  T.ok('예전 방식 옵션(spec, pet)도 인식', lg.t1.spec === 7 && lg.pet === 'spec' && LOA.normFix({ spec: 7, pet: 'auto' }).pet === 'auto');
+  T.ok('fix가 있으면 예전 옵션은 무시', LOA.normFix({ fix: F({}), spec: 9, pet: 'spec' }).t1.spec === 0 && LOA.normFix({ fix: F({}), spec: 9, pet: 'spec' }).pet === 'auto');
+
+  // 스톤·체크 각인과 함께
+  const st = Object.assign({}, inp, { stone: [{ id: 'blunt', lv: 3 }, { id: 'grudge', lv: 2 }] });
+  res = run(F({ t3: t3({ strike: 2 }), t4: t4({ master: true }), pet: 'swift' }), { tenacity: true }, st);
+  T.ok('스톤 각인 + 체크 각인 + 고정 노드를 모두 지킴', picks(res).length >= 4 && picks(res).every(p => p.build.t3.strike === 2 && p.build.t4.master && p.build.pet === 'swift'
+    && ['blunt', 'grudge', 'tenacity'].every(id => p.build.engr.includes(id))));
+
+  // 무작위 고정 조건: 합법 세팅 하나에서 일부를 뽑아 고정 → 항상 만족해야 한다
+  let nPick = 0, okAll = true, okFast = true;
+  for (let seed = 1; seed <= 10; seed++) {
+    const R = rnd(7700 + seed), ri = randomInput(R), b = randomBuild(R, LOA.ENGR_ORDER, Math.floor(R() * 20));
+    const keep = (o) => { const out = {}; Object.keys(o).forEach(k => { out[k] = R() < 0.5 ? o[k] : (typeof o[k] === 'boolean' ? false : 0); }); return out; };
+    const fix = { t1: keep(b.t1), pet: R() < 0.5 ? b.pet : 'auto', t2: keep(b.t2), t3: keep(b.t3), t4: keep(b.t4), t5: R() < 0.4 ? b.t5.id : 'auto' };
+    const r = LOA.runSync(ri, cur, { fix });
+    if (r.invalid.length || !r.results.length) { okAll = false; continue; }
+    for (const p of picks(r)) {
+      nPick++;
+      const bb = p.build;
+      if (!(bb.t1.crit >= fix.t1.crit && bb.t1.swift >= fix.t1.swift && bb.t1.spec === fix.t1.spec && bb.t1.crit + bb.t1.swift + bb.t1.spec === 40
+        && (fix.pet === 'auto' ? bb.pet !== 'spec' : bb.pet === fix.pet)
+        && Object.keys(fix.t2).every(k => bb.t2[k] >= fix.t2[k]) && sum(bb.t2) === 3
+        && Object.keys(fix.t3).every(k => bb.t3[k] >= fix.t3[k]) && sum(bb.t3) === 2
+        && Object.keys(fix.t4).every(k => !fix.t4[k] || bb.t4[k]) && Object.values(bb.t4).filter(Boolean).length === 2
+        && (fix.t5 === 'auto' || bb.t5.id === fix.t5))) okAll = false;
+      if (!(Math.abs(p.fast - p.ratio) < 1e-9 && Number.isFinite(p.ratio))) okFast = false;
+    }
+  }
+  T.ok(`무작위 고정 조건 10건: 추천 ${nPick}개가 모두 조건을 만족`, okAll && nPick >= 10);
+  T.ok('무작위 고정 조건: 표시값 = 고속 탐색값', okFast);
+}
+
 T.section('각인 후보 가지치기의 무손실성 (전체 조합과 대조)');
 {
   let cases = 0, okc = 0, worstGap = 0;
@@ -484,18 +598,29 @@ T.section('완전 전수 대조 (엔진과 무관하게 다시 열거한 모든 
         skills: [skill({ share: 45, r: 95, dir: 'back', p: 70, mana: 420, cr: 30 }), skill({ share: 35, r: 80, mana: 250, charge: true }), skill({ share: 20, r: 40, type: 'hyper', mana: 600 })] }) },
     { name: '특화 30 + 특화 펫', spec: 30, pets: ['spec'], petOpt: 'spec', inp: baseInp({ baseCrit: 210, baseSwift: 180, extraAS: 20, extraMS: 22, otherAdd: 28, otherCD: 6, karma: 6, syn10: true,
         bracelet: { grade: 'ancient', slots: [{ id: 'cdH', tier: 1 }] }, stone: [{ id: 'grudge', lv: 4 }, { id: 'dagger', lv: 2 }],
-        skills: [skill({ share: 40, r: 85, cr: 15, dir: 'head', p: 75 }), skill({ share: 35, r: 70, mana: 380, hold: true }), skill({ share: 15, r: 100, type: 'awakening' }), skill({ share: 10, r: 0, type: 'identity', cd: 30 })] }) }
+        skills: [skill({ share: 40, r: 85, cr: 15, dir: 'head', p: 75 }), skill({ share: 35, r: 70, mana: 380, hold: true }), skill({ share: 15, r: 100, type: 'awakening' }), skill({ share: 10, r: 0, type: 'identity', cd: 30 })] }) },
+    { name: '고정: 일격 2(방향성 스킬 없음) + 달인 + 치명 12↑ 신속 8↑ 특화 5', spec: 5,
+      opts: { fix: { t1: { crit: 12, spec: 5, swift: 8 }, pet: 'auto', t2: {}, t3: { strike: 2 }, t4: { master: true }, t5: 'auto' } },
+      keep: (t5, a, b, c, cr, sw) => b.strike === 2 && c.master && cr >= 12 && sw >= 8,
+      inp: baseInp({ baseCrit: 180, baseSwift: 140, extraAS: 14, extraMS: 18, otherAdd: 30, karma: 6, stone: [{ id: 'blunt', lv: 2 }, { id: 'grudge', lv: 3 }],
+        skills: [skill({ share: 50, r: 90, cr: 10 }), skill({ share: 35, r: 65, mana: 300 }), skill({ share: 15, r: 100, type: 'awakening' })] }) },
+    { name: '고정: 5티어 인파이팅 + 끝없는 마나 1↑ + 한계 돌파 1↑ + 펫 신속', spec: 0, t5s: ['infight'], pets: ['swift'], minCount: 1e5,
+      opts: { fix: { t1: {}, pet: 'swift', t2: { endless: 1, limit: 1 }, t3: {}, t4: {}, t5: 'infight' } },
+      keep: (t5, a) => a.endless >= 1 && a.limit >= 1,
+      inp: baseInp({ baseCrit: 120, baseSwift: 220, extraAS: 10, extraMS: 12, otherAdd: 26, karma: 4, syn10: true, stone: [{ id: 'adrenaline', lv: 3 }, { id: 'doll', lv: 1 }],
+        skills: [skill({ share: 45, r: 80, dir: 'back', p: 60, mana: 350 }), skill({ share: 40, r: 75, mana: 200, charge: true }), skill({ share: 15, r: 30, type: 'hyper', mana: 500 })] }) }
   ];
   for (const sc of scenarios) {
-    const inp = sc.inp, opts = { spec: sc.spec, pet: sc.petOpt || 'auto' };
+    const inp = sc.inp, opts = sc.opts || { spec: sc.spec, pet: sc.petOpt || 'auto' };
     const cur = build({ engr: ['grudge', 'blunt', 'adrenaline', 'raid', 'doll'], t1: { crit: 5, spec: sc.spec, swift: 40 - sc.spec - 5 }, pet: 'crit',
       t2: t2({ limit: 3 }), t3: t3({ allout: 2 }), t4: { crit: true, master: false, crush: true }, t5: { id: 'stand', lv: 2 } });
     const evC = LOA.evalBuild(cur, inp), sets = LOA.engravingSets(inp, opts, inp.skills);
     const forced = LOA.forcedEngr(inp), rem = 40 - sc.spec, sum = inp.skills.reduce((a, s) => a + s.share, 0);
-    const t0 = Date.now(), best = { thorn: 0, sonic: 0, stand: 0, furnace: 0 };
+    const t0 = Date.now(), best = {};
+    (sc.t5s || ['thorn', 'sonic', 'stand', 'furnace']).forEach(k => { best[k] = 0; });
     let count = 0;
     for (const t5 of Object.keys(best)) for (const a of T2s) for (const b of T3s) for (const c of T4s)
-      for (let cr = Math.max(0, rem - 30); cr <= Math.min(30, rem); cr++) for (const pet of (sc.pets || ['crit', 'swift'])) for (const engr of sets) {
+      for (let cr = Math.max(0, rem - 30); cr <= Math.min(30, rem); cr++) for (const pet of (sc.pets || ['crit', 'swift'])) { if (sc.keep && !sc.keep(t5, a, b, c, cr, rem - cr, pet)) continue; for (const engr of sets) {
         const ev = LOA.evalBuild({ engr, t1: { crit: cr, swift: rem - cr, spec: sc.spec }, pet, t2: a, t3: b, t4: c, t5: { id: t5, lv: 2 } }, inp);
         if (engr.includes('mass') && !forced.includes('mass') && ev.ctx.AS < 40 - EPS) continue;
         let tot = 0;
@@ -505,9 +630,10 @@ T.section('완전 전수 대조 (엔진과 무관하게 다시 열거한 모든 
         }
         tot /= sum; count++;
         if (tot > best[t5]) best[t5] = tot;
-      }
+      } }
     const res = LOA.runSync(inp, cur, opts);
-    T.ok(`${sc.name}: 조합 ${count.toLocaleString()}개 전수 계산 (${((Date.now() - t0) / 1000).toFixed(1)}초)`, count > 2e5);
+    T.ok(`${sc.name}: 조합 ${count.toLocaleString()}개 전수 계산 (${((Date.now() - t0) / 1000).toFixed(1)}초)`, count > (sc.minCount || 2e5));
+    T.ok(`${sc.name}: 결과의 5티어 목록이 기대와 같음`, res.results.map(r => r.t5).join() === Object.keys(best).join());
     for (const r of res.results) T.near(`${sc.name} ${r.t5}: 최적값 일치 (${r.picks[0].ratio.toFixed(6)})`, r.picks[0].ratio, best[r.t5], 1e-10);
   }
 }
