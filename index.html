@@ -29,6 +29,9 @@ body{margin:0;background:var(--bg);color:var(--ink);
 header.top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
 h1{font-size:22px;margin:0;letter-spacing:-.01em}
 .sub{color:var(--muted);margin:4px 0 0;font-size:13px}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;justify-content:flex-end;max-width:100%}
+.tools label.f{flex:1 1 180px;max-width:240px}
+.tools #toolMsg{flex:1 1 100%;margin:0;text-align:right;min-height:1.2em;overflow-wrap:anywhere}
 section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
 h2{font-size:15px;margin:0 0 4px}
 h2 small,.hint{color:var(--muted);font-weight:400;font-size:12px}
@@ -97,7 +100,14 @@ details{margin-top:10px} summary{cursor:pointer;color:var(--accent);font-size:12
       <h1>로스트아크 각인 · 아크패시브 최적화</h1>
       <p class="sub">2026-11-18 패치(다중 치명타, 뭉툭한 가시 개편) 기준 · 음속 돌파 / 뭉툭한 가시 / 입식 타격가 / 마나 용광로 비교</p>
     </div>
-    <button id="reset" type="button">입력 초기화</button>
+    <div class="tools" id="tools">
+      <label class="f"><b>기록 이름</b><input type="text" id="label" data-b="label" maxlength="40" placeholder="직업명 등 (파일 이름에 쓰임)"></label>
+      <button id="exportBtn" type="button">파일로 저장</button>
+      <button id="importBtn" type="button">파일 불러오기</button>
+      <input type="file" id="importFile" accept=".json,application/json" aria-label="불러올 저장 파일 선택" hidden>
+      <button id="reset" type="button">입력 초기화</button>
+      <p id="toolMsg" class="hint" role="status" aria-live="polite"></p>
+    </div>
   </header>
 
   <section id="char"></section>
@@ -135,7 +145,7 @@ details{margin-top:10px} summary{cursor:pointer;color:var(--accent);font-size:12
       <li>일격의 치명타 피해는 방향성 스킬(백/헤드 체크)에 성공 여부와 무관하게 적용됩니다. 백어택 성공 시 치적 +10%·피해 +5%, 헤드어택 성공 시 피해 +20%를 성공 비율만큼 반영합니다.</li>
       <li>공격 속도는 음속 돌파와 질량 증가 판정에만, 이동 속도는 음속 돌파와 돌격대장에만 쓰입니다. 특화의 딜 기여는 계산하지 않습니다.</li>
       <li>환산 계수(커뮤니티 측정값): 치명 27.944당 치적 1%, 신속 58.24당 공이속 1%, 신속 46.57당 쿨감 1%. 각인·노드 수치는 2026-11-19 기준 자료, 팔찌 수치는 공식 확률 공개(2025-12-30 수정본) 기준입니다.</li>
-      <li>입력한 값은 이 브라우저에만 저장되고 어디로도 전송되지 않습니다.</li>
+      <li>입력한 값은 이 브라우저에만 저장되고 어디로도 전송되지 않습니다. "파일로 저장"은 모든 입력을 파일 하나(JSON)로 내려받고, "파일 불러오기"는 그 파일로 입력을 되돌립니다. 직업별로 기록을 나눠 보관할 때 씁니다. 계산 결과는 파일에 들어가지 않습니다.</li>
       <li>이 계산기는 개인이 만든 비공식 도구이며 스마일게이트 RPG와 관련이 없습니다. 인게임 실측으로 검증하지 않은 규칙이 있으니 참고용으로 써 주세요.</li>
     </ul>
   </section>
@@ -205,11 +215,13 @@ const LOA = (function () {
 
   const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
   const num = x => { const v = Number(x); return Number.isFinite(v) ? v : 0; };
+  // 표에 실제로 있는 이름인지 (constructor 같은 상속 속성은 제외)
+  const known = (table, id) => typeof id === 'string' && Object.prototype.hasOwnProperty.call(table, id);
 
   function stoneBonus(inp, id) {
-    const s = inp.stone || [];
+    const s = Array.isArray(inp.stone) ? inp.stone : [];
     for (let i = 0; i < s.length; i++) {
-      if (s[i] && s[i].id === id && s[i].lv > 0 && ENGR[id]) {
+      if (s[i] && s[i].id === id && s[i].lv > 0 && known(ENGR, id)) {
         if (i === 1 && s[0] && s[0].id === id) return 0;   // 같은 각인 중복 지정은 첫 칸만 인정
         return ENGR[id].stone[clamp(Math.round(s[i].lv), 1, 4) - 1];
       }
@@ -218,7 +230,7 @@ const LOA = (function () {
   }
   function forcedEngr(inp) {
     const out = [];
-    (inp.stone || []).forEach(s => { if (s && ENGR[s.id] && !out.includes(s.id)) out.push(s.id); });
+    (Array.isArray(inp.stone) ? inp.stone : []).forEach(s => { if (s && known(ENGR, s.id) && !out.includes(s.id)) out.push(s.id); });
     return out;
   }
   // 추천에 반드시 들어가는 각인: 스톤 각인 + 추천 조건에서 체크한 각인
@@ -232,7 +244,7 @@ const LOA = (function () {
     const b = inp.bracelet || {};
     const g = b.grade === 'relic' ? 'relic' : 'ancient';
     (b.slots || []).forEach(s => {
-      const o = s && BRACELET[s.id];
+      const o = s && known(BRACELET, s.id) && BRACELET[s.id];
       if (!o || !o.eff) return;
       const v = o.fixed !== undefined ? o.fixed : o[g][clamp(Math.round(num(s.tier)), 0, 2)];
       r[o.eff] += v;
@@ -267,7 +279,7 @@ const LOA = (function () {
 
   function context(build, inp) {
     const has = {};
-    (build.engr || []).forEach(e => { if (ENGR[e]) has[e] = true; });
+    (build.engr || []).forEach(e => { if (known(ENGR, e)) has[e] = true; });
     const st = id => stoneBonus(inp, id);
     const br = braceletEffects(inp);
     const t1 = build.t1, t2 = build.t2, t3 = build.t3, t4 = build.t4, t5 = build.t5 || { id: 'none', lv: 0 };
@@ -409,7 +421,7 @@ const LOA = (function () {
     const out = {
       t1: { crit: lv(f.t1, 'crit', 30), spec: lv(f.t1, 'spec', 30), swift: lv(f.t1, 'swift', 30) },
       pet: ['crit', 'swift', 'spec'].includes(f.pet) ? f.pet : 'auto',
-      t2: {}, t3: {}, t4: {}, t5: T5[f.t5] ? f.t5 : 'auto'
+      t2: {}, t3: {}, t4: {}, t5: known(T5, f.t5) ? f.t5 : 'auto'
     };
     Object.keys(T2).forEach(k => { out.t2[k] = lv(f.t2, k, T2[k].max); });
     Object.keys(T3).forEach(k => { out.t3[k] = lv(f.t3, k, T3[k].max); });
@@ -583,30 +595,21 @@ const LOA = (function () {
     return n.value;
   }
 
-  return { K, ENGR, ENGR_ORDER, T2, T3, T4, T5, BRACELET, critMult, critHit, sonicEvo, furnaceEvo, useGain,
-           stoneBonus, forcedEngr, requiredEngr, braceletEffects, context, evalBuild, compare, engravingSets, normFix, checkFix, optimize, runSync };
-})();
-if (typeof module !== 'undefined' && module.exports) module.exports = LOA;
-</script>
-
-<script id="ui">
-(function () {
-  'use strict';
-  const $ = s => document.querySelector(s);
-  const KEY = 'loa-opt-v1';
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const sk = (name, type, share, r) => ({ name, type, share, r, cr: 0, cd: 0, dir: 'none', p: 80, charge: false, hold: false, mana: 0 });
+  // ───────── 입력 상태: 기본값, 검증, 저장 파일 ─────────
+  const FILE_APP = 'loa-engraving-optimizer', FILE_VERSION = 1, FILE_MAX = 1024 * 1024, LIMIT = 1e6;
+  const NUM_FIELDS = ['baseCrit', 'baseSwift', 'extraAS', 'extraMS', 'otherCR', 'otherCD', 'otherAdd', 'otherAtk', 'otherH', 'karma', 'otherEvo'];
 
   function defaults() {
-    const skills = [];
-    for (let i = 1; i <= 8; i++) skills.push(sk('스킬 ' + i, 'normal', 11, 80));
-    skills.push(sk('초각성 스킬', 'hyper', 8, 80), sk('아이덴티티 스킬', 'identity', 0, 0), sk('각성기', 'awakening', 4, 80));
+    const rows = [];
+    for (let i = 1; i <= 8; i++) rows.push(['스킬 ' + i, 'normal', 11, 80]);
+    rows.push(['초각성 스킬', 'hyper', 8, 80], ['아이덴티티 스킬', 'identity', 0, 0], ['각성기', 'awakening', 4, 80]);
     return {
+      label: '',
       baseCrit: 0, baseSwift: 0, extraAS: 0, extraMS: 0, otherCR: 0, otherCD: 0, otherAdd: 30, otherAtk: 0, otherH: 0,
       karma: 6, otherEvo: 0, syn10: false, syn20: false,
       bracelet: { grade: 'ancient', slots: [{ id: 'none', tier: 2 }, { id: 'none', tier: 2 }, { id: 'none', tier: 2 }] },
       stone: [{ id: 'none', lv: 0 }, { id: 'none', lv: 0 }],
-      skills,
+      skills: rows.map(([name, type, share, r]) => ({ name, type, share, r, cr: 0, cd: 0, dir: 'none', p: 80, charge: false, hold: false, mana: 0 })),
       cur: { engr: ['grudge', 'blunt', 'adrenaline', 'raid', 'doll'], t1: { crit: 30, spec: 0, swift: 10 }, pet: 'crit',
              t2: { endless: 0, forbidden: 0, keen: 0, limit: 3, optim: 0 },
              t3: { infinite: 0, allout: 2, strike: 0, tank: 0, timing: 0 },
@@ -618,17 +621,104 @@ if (typeof module !== 'undefined' && module.exports) module.exports = LOA;
              t4: { crit: false, master: false, crush: false }, t5: 'auto' }
     };
   }
-  let state = defaults();
+
+  const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const own = (o, k) => (isObj(o) && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined);
+  function fnum(v, d) {
+    const x = typeof v === 'number' ? v : (typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN);
+    return Number.isFinite(x) ? clamp(x, -LIMIT, LIMIT) : d;
+  }
+  const fint = (v, d, lo, hi) => clamp(Math.round(fnum(v, d)), lo, hi);
+  const ftext = (v, d, max) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, max) : d);
+  const pick = (v, list, d) => (typeof v === 'string' && list.includes(v) ? v : d);
+
+  // 브라우저 저장값이나 불러온 파일을 그대로 믿지 않는다.
+  // 아는 항목만 형식과 범위를 확인해 새 객체로 옮기고, 나머지는 버린다. 형식이 아니면 null.
+  function sanitize(raw) {
+    if (!isObj(raw) || !Array.isArray(own(raw, 'skills')) || raw.skills.length !== 11 || !isObj(own(raw, 'cur')) || !isObj(own(raw, 'opt'))) return null;
+    const d = defaults(), out = defaults();
+    out.label = ftext(own(raw, 'label'), '', 40);
+    NUM_FIELDS.forEach(k => { out[k] = fnum(own(raw, k), d[k]); });
+    out.syn10 = own(raw, 'syn10') === true;
+    out.syn20 = own(raw, 'syn20') === true;
+
+    const br = own(raw, 'bracelet'), slots = Array.isArray(own(br, 'slots')) ? br.slots : [];
+    out.bracelet = {
+      grade: pick(own(br, 'grade'), ['ancient', 'relic'], 'ancient'),
+      slots: [0, 1, 2].map(i => ({ id: pick(own(slots[i], 'id'), Object.keys(BRACELET), 'none'), tier: fint(own(slots[i], 'tier'), 2, 0, 2) }))
+    };
+    const engrIds = ['none'].concat(ENGR_ORDER), st = Array.isArray(own(raw, 'stone')) ? raw.stone : [];
+    out.stone = [0, 1].map(i => ({ id: pick(own(st[i], 'id'), engrIds, 'none'), lv: fint(own(st[i], 'lv'), 0, 0, 4) }));
+
+    // 스킬 종류(일반·초각성·아이덴티티·각성기)는 줄 위치로 정해지며 저장값으로 바꿀 수 없다
+    out.skills = d.skills.map((b, i) => {
+      const s = raw.skills[i], awk = b.type === 'awakening';
+      return {
+        name: ftext(own(s, 'name'), b.name, 40), type: b.type,
+        share: fnum(own(s, 'share'), b.share), r: fnum(own(s, 'r'), b.r), cr: fnum(own(s, 'cr'), 0), cd: fnum(own(s, 'cd'), 0),
+        dir: awk ? 'none' : pick(own(s, 'dir'), ['none', 'back', 'head'], 'none'), p: fnum(own(s, 'p'), 80),
+        charge: !awk && own(s, 'charge') === true, hold: !awk && own(s, 'hold') === true, mana: awk ? 0 : fnum(own(s, 'mana'), 0)
+      };
+    });
+
+    const c = raw.cur, ce = Array.isArray(own(c, 'engr')) ? c.engr : [], c1 = own(c, 't1'), c4 = own(c, 't4'), c5 = own(c, 't5');
+    const levels = (src, def) => { const o = {}; Object.keys(def).forEach(k => { o[k] = fint(own(src, k), 0, 0, def[k].max); }); return o; };
+    const flags = (src, def) => { const o = {}; Object.keys(def).forEach(k => { o[k] = own(src, k) === true; }); return o; };
+    out.cur = {
+      engr: [0, 1, 2, 3, 4].map(i => pick(ce[i], engrIds, 'none')),
+      t1: { crit: fint(own(c1, 'crit'), 0, 0, 30), spec: fint(own(c1, 'spec'), 0, 0, 30), swift: fint(own(c1, 'swift'), 0, 0, 30) },
+      pet: pick(own(c, 'pet'), ['crit', 'swift', 'spec'], 'crit'),
+      t2: levels(own(c, 't2'), T2), t3: levels(own(c, 't3'), T3), t4: flags(c4, T4),
+      t5: { id: pick(own(c5, 'id'), ['none'].concat(Object.keys(T5)), 'none'), lv: fint(own(c5, 'lv'), 2, 1, 2) }
+    };
+    const o = raw.opt, fx = own(raw, 'fix');
+    out.opt = { tenacity: own(o, 'tenacity') === true, barricade: own(o, 'barricade') === true, mass: own(o, 'mass') === true };
+    // 이전 형식: 추천 조건에 있던 특화 고정 포인트와 펫 설정을 고정 메뉴로 옮긴다
+    out.fix = normFix({ fix: isObj(fx) ? fx : { t1: { spec: own(o, 'spec') }, pet: own(o, 'pet') === 'spec' ? 'spec' : 'auto' } });
+    return out;
+  }
+
+  // 저장 파일: 입력 상태 전체를 담은 JSON 하나
+  function packFile(state, now) {
+    const data = sanitize(state) || defaults();
+    return JSON.stringify({ app: FILE_APP, version: FILE_VERSION, savedAt: (now || new Date()).toISOString(), label: data.label, data }, null, 2);
+  }
+  function unpackFile(text) {
+    if (typeof text !== 'string' || !text.trim()) return { ok: false, error: '파일이 비어 있습니다.' };
+    if (text.length > FILE_MAX) return { ok: false, error: '파일이 너무 큽니다 (1MB 초과).' };
+    let obj;
+    try { obj = JSON.parse(text.replace(/^﻿/, '')); } catch (e) { return { ok: false, error: '저장 파일 형식(JSON)이 아닙니다.' }; }
+    if (!isObj(obj) || own(obj, 'app') !== FILE_APP || !isObj(own(obj, 'data'))) return { ok: false, error: '이 계산기의 저장 파일이 아닙니다.' };
+    const state = sanitize(obj.data);
+    if (!state) return { ok: false, error: '저장 파일의 내용이 올바르지 않습니다.' };
+    const ver = own(obj, 'version');
+    return { ok: true, state, savedAt: ftext(own(obj, 'savedAt'), '', 40), newer: typeof ver === 'number' && ver > FILE_VERSION };
+  }
+  function fileName(label, now) {
+    const t = now || new Date(), p = n => String(n).padStart(2, '0');
+    const name = ftext(label, '', 40).replace(/[\\/:*?"<>|]/g, '_').replace(/\.{2,}/g, '_').replace(/\s+/g, ' ').trim().replace(/^\.+/, '') || '이름없음';
+    return `로아세팅_${name}_${t.getFullYear()}${p(t.getMonth() + 1)}${p(t.getDate())}-${p(t.getHours())}${p(t.getMinutes())}.json`;
+  }
+
+  return { FILE_APP, FILE_VERSION, FILE_MAX, defaults, sanitize, packFile, unpackFile, fileName,
+           K, ENGR, ENGR_ORDER, T2, T3, T4, T5, BRACELET, critMult, critHit, sonicEvo, furnaceEvo, useGain,
+           stoneBonus, forcedEngr, requiredEngr, braceletEffects, context, evalBuild, compare, engravingSets, normFix, checkFix, optimize, runSync };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = LOA;
+</script>
+
+<script id="ui">
+(function () {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  const KEY = 'loa-opt-v1';
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // 저장값은 검증을 거친 것만 쓴다 (형식이 맞지 않으면 기본값)
+  let state = LOA.defaults();
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) { const s = JSON.parse(raw); if (s && Array.isArray(s.skills) && s.skills.length === 11 && s.cur && s.opt) {
-      state = Object.assign(defaults(), s);
-      delete state.asm;
-      // 이전 형식: 추천 조건에 있던 특화 고정 포인트와 펫 설정을 고정 메뉴로 옮긴다
-      const legacy = !s.fix ? { t1: { spec: s.opt.spec }, pet: s.opt.pet === 'spec' ? 'spec' : 'auto' } : s.fix;
-      state.fix = LOA.normFix({ fix: legacy });
-      state.opt = { tenacity: !!s.opt.tenacity, barricade: !!s.opt.barricade, mass: !!s.opt.mass };
-    } }
+    if (raw) { const s = LOA.sanitize(JSON.parse(raw)); if (s) state = s; }
   } catch (e) { /* 저장소를 못 쓰는 환경에서는 기본값으로 시작 */ }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
 
@@ -816,7 +906,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = LOA;
     });
   }
 
-  const sections = { char: renderChar, bracelet: renderBracelet, stone: renderStone, skills: renderSkills, current: renderCurrent, options: renderOptions, fixed: renderFixed };
+  const renderTools = () => { $('#label').value = state.label; };
+  const sections = { tools: renderTools, char: renderChar, bracelet: renderBracelet, stone: renderStone, skills: renderSkills, current: renderCurrent, options: renderOptions, fixed: renderFixed };
   const renderAll = () => Object.values(sections).forEach(f => f());
 
   function apply(el) {
@@ -837,9 +928,36 @@ if (typeof module !== 'undefined' && module.exports) module.exports = LOA;
     else if (/^cur\.t1\./.test(el.dataset.b)) renderCurrent();
     else if (/^fix\.t1\./.test(el.dataset.b)) renderFixed();
   });
+  const toolMsg = (text, isError) => { const el = $('#toolMsg'); el.textContent = text; el.className = isError ? 'warn' : 'hint'; };
   $('#reset').addEventListener('click', () => {
     if (!confirm('입력한 내용을 모두 지우고 기본값으로 되돌릴까요?')) return;
-    state = defaults(); save(); renderAll(); $('#results').hidden = true;
+    state = LOA.defaults(); save(); renderAll(); $('#results').hidden = true; toolMsg('');
+  });
+
+  // ---------- 파일로 저장 / 불러오기 ----------
+  $('#exportBtn').addEventListener('click', () => {
+    const name = LOA.fileName(state.label), text = LOA.packFile(state);
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    toolMsg(`저장했습니다: ${name}`);
+  });
+  $('#importBtn').addEventListener('click', () => $('#importFile').click());
+  $('#importFile').addEventListener('change', async e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';   // 같은 파일을 다시 골라도 동작하도록
+    if (!file) return;
+    if (file.size > LOA.FILE_MAX) return toolMsg('파일이 너무 큽니다 (1MB 초과).', true);
+    let text;
+    try { text = await file.text(); } catch (err) { return toolMsg('파일을 읽을 수 없습니다.', true); }
+    const r = LOA.unpackFile(text);
+    if (!r.ok) return toolMsg(r.error, true);
+    const title = r.state.label || file.name;
+    if (!confirm(`지금 입력된 내용을 "${title}" 기록으로 바꿉니다. 계속할까요?`)) return;
+    state = r.state; save(); renderAll(); $('#results').hidden = true;
+    toolMsg(`불러왔습니다: ${title}` + (r.newer ? ' (더 새 버전에서 저장한 파일이라 일부 항목은 빠졌을 수 있습니다)' : ''));
   });
 
   // ---------- 결과 ----------

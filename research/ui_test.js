@@ -327,4 +327,117 @@ if (phase === 9) {   // 8단계 뒤 새로고침
   localStorage.removeItem(KEY);
 }
 
+if (phase === 10) {   // 파일로 저장 / 불러오기 (저장소를 비우고 새로 연 상태에서 시작)
+  const allMatch = () => { const st = saved(); return qa('[data-b]').filter(el => { const v = get(st, el.dataset.b); if (v === undefined) return true;
+    if (el.type === 'checkbox') return el.checked !== v; if (el.type === 'number') return Number(el.value) !== v; return String(el.value) !== String(v); }).map(el => el.dataset.b); };
+  ok('도구 줄: 기록 이름, 파일로 저장, 파일 불러오기, 입력 초기화', !!b('label') && q('#exportBtn').textContent === '파일로 저장' && q('#importBtn').textContent === '파일 불러오기' && !!q('#reset'));
+  ok('파일 선택 칸은 숨겨져 있고 JSON만 받음', q('#importFile').hidden && getComputedStyle(q('#importFile')).display === 'none' && q('#importFile').accept.includes('.json') && !!q('#importFile').getAttribute('aria-label'));
+
+  // 기록 A
+  setVal('label', '기상술사 / 질풍');
+  setVal('baseCrit', 412); setVal('extraMS', -3.5); setChk('syn20', true);
+  setVal('skills.0.name', '<img src=x onerror="window.__xss2=1">'); setVal('skills.0.dir', 'back'); setVal('skills.0.p', 65); setVal('skills.1.mana', 320); setChk('skills.1.hold', true);
+  setVal('bracelet.grade', 'relic'); setVal('bracelet.slots.0.id', 'crH'); setVal('bracelet.slots.0.tier', 1);
+  setVal('stone.0.id', 'blunt'); setVal('stone.0.lv', 4);
+  setVal('cur.pet', 'swift'); setChk('opt.tenacity', true);
+  setVal('fix.t3.strike', 2); setChk('fix.t4.master', true); setVal('fix.t1.spec', 12);
+  const A = JSON.stringify(saved());
+  ok('기록 이름이 상태에 저장됨', saved().label === '기상술사 / 질풍');
+
+  // 내려받기를 가로채 파일 이름과 내용을 확인한다
+  const cap = [], origClick = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function () { if (this.download) cap.push({ name: this.download, href: this.href }); else origClick.call(this); };
+  const grab = async () => { const c = cap[cap.length - 1]; return { name: c.name, text: await fetch(c.href).then(r => r.text()) }; };
+  q('#exportBtn').click();
+  const fa = await grab();
+  ok('저장 버튼 → 파일 1개', cap.length === 1 && cap[0].href.startsWith('blob:'));
+  ok('파일 이름: 로아세팅_기록이름_날짜-시각.json (금지 문자는 _로)', /^로아세팅_기상술사 _ 질풍_\d{8}-\d{4}\.json$/.test(fa.name), fa.name);
+  const fobj = JSON.parse(fa.text);
+  ok('파일 내용: 형식 정보 + 모든 입력', fobj.app === 'loa-engraving-optimizer' && fobj.version === 1 && fobj.label === '기상술사 / 질풍' && JSON.stringify(fobj.data) === A && !isNaN(Date.parse(fobj.savedAt)));
+  ok('파일에는 입력 항목만 들어 있음 (계산 결과 없음)', Object.keys(fobj).join() === 'app,version,savedAt,label,data' && Object.keys(fobj.data).join() === Object.keys(LOA.defaults()).join());
+  ok('저장 안내 문구', q('#toolMsg').textContent === '저장했습니다: ' + fa.name);
+  ok('임시 링크가 문서에 남지 않음', !document.querySelector('a[download]'));
+
+  // 기록 B
+  window.confirm = () => true; q('#reset').click();
+  ok('초기화하면 기록 이름과 안내 문구도 비워짐', b('label').value === '' && saved().label === '' && q('#toolMsg').textContent === '');
+  setVal('label', '버서커'); setVal('baseCrit', 77); setVal('fix.t5', 'thorn');
+  const B = JSON.stringify(saved());
+  q('#exportBtn').click();
+  const fb = await grab();
+  ok('두 번째 기록도 따로 저장', cap.length === 2 && /^로아세팅_버서커_/.test(fb.name) && JSON.stringify(JSON.parse(fb.text).data) === B);
+
+  // 실제 파일 선택 칸에 파일을 넣어 불러온다
+  const give = async (text, name) => { const dt = new DataTransfer(); dt.items.add(new File([text], name || 'x.json', { type: 'application/json' }));
+    const inp = q('#importFile'); inp.files = dt.files; fire(inp, 'change'); await sleep(200); };
+  let asked = [];
+  window.confirm = (m) => { asked.push(m); return false; };
+  await give(fa.text, 'a.json');
+  ok('불러오기 전에 확인 창 (기록 이름 표시)', asked.length === 1 && asked[0].includes('기상술사 / 질풍'));
+  ok('확인을 취소하면 입력이 바뀌지 않음', JSON.stringify(saved()) === B && b('baseCrit').value === '77' && b('label').value === '버서커');
+  window.confirm = (m) => { asked.push(m); return true; };
+  await runAndWait();
+  ok('(준비) 기록 B로 계산한 결과가 떠 있음', !q('#results').hidden);
+  await give(fa.text, 'a.json');
+  ok('불러오면 모든 값이 기록 A와 동일', JSON.stringify(saved()) === A);
+  ok('화면 입력칸도 기록 A로 바뀜', b('label').value === '기상술사 / 질풍' && b('baseCrit').value === '412' && b('extraMS').value === '-3.5' && b('syn20').checked && b('skills.0.dir').value === 'back' && b('skills.0.p').value === '65'
+    && b('skills.1.hold').checked && b('skills.1.mana').value === '320' && b('bracelet.grade').value === 'relic' && b('bracelet.slots.0.tier').value === '1' && b('stone.0.lv').value === '4' && b('cur.pet').value === 'swift'
+    && b('opt.tenacity').checked && b('fix.t3.strike').value === '2' && b('fix.t4.master').checked && b('fix.t1.spec').value === '12' && b('fix.t5').value === 'auto');
+  ok('모든 입력 요소가 상태값과 일치', allMatch().length === 0, allMatch().join(', '));
+  ok('불러오면 이전 결과는 숨김', q('#results').hidden);
+  ok('불러오기 안내 문구', q('#toolMsg').textContent === '불러왔습니다: 기상술사 / 질풍' && q('#toolMsg').className === 'hint');
+  ok('고정 메뉴 요약도 갱신 (3개 고정됨)', /3개 고정됨/.test(q('#fixed summary').textContent));
+  ok('저장된 스킬 이름의 HTML은 실행되지 않음', window.__xss2 === undefined && !q('#skills td img') && b('skills.0.name').value.startsWith('<img'));
+  await runAndWait();
+  let cards = qa('#results .card');
+  const er = engineResult().results.filter(r => r.picks.length).sort((a, c) => c.picks[0].ratio - a.picks[0].ratio);
+  ok('불러온 기록으로 계산: 수치 = 엔진, 고정·체크 반영', cards.length === 4 && cards.map(c => c.querySelector('.gain').textContent).join() === er.map(r => fmt(r.picks[0].ratio)).join()
+    && cards.every(c => c.innerText.includes('일격 2 (고정)') && /달인 \(고정\)/.test(c.innerText) && c.innerText.includes('달인의 저력 ✓') && c.innerText.includes('예리한 둔기 ★')));
+  const n0 = asked.length;
+  await give(fa.text, 'a.json');
+  ok('같은 파일을 연달아 다시 골라도 동작', asked.length === n0 + 1 && JSON.stringify(saved()) === A);
+  await give(fb.text, 'b.json');
+  ok('기록 B를 불러오면 B로 (직업 간 전환)', JSON.stringify(saved()) === B && b('label').value === '버서커' && b('fix.t5').value === 'thorn' && b('baseCrit').value === '77' && b('skills.0.dir').value === 'none');
+  q('#exportBtn').click();
+  const fb2 = await grab();
+  ok('불러온 뒤 다시 저장하면 내용이 같음', JSON.stringify(JSON.parse(fb2.text).data) === B);
+
+  // 잘못된 파일
+  const before = JSON.stringify(saved()); asked = [];
+  const badFiles = [['글자', 'hello', 'JSON'], ['다른 프로그램', '{"app":"x","data":{}}', '저장 파일이 아닙니다'], ['빈 파일', '', '비어 있습니다'],
+    ['스킬 3행', JSON.stringify(Object.assign({}, fobj, { data: Object.assign({}, fobj.data, { skills: fobj.data.skills.slice(0, 3) }) })), '올바르지 않습니다'],
+    ['1MB 초과', JSON.stringify(Object.assign({}, fobj, { pad: 'x'.repeat(1100000) })), '너무 큽니다']];
+  for (const [name, text, word] of badFiles) {
+    await give(text, 'bad.json');
+    ok(`잘못된 파일(${name}) → 오류 문구, 입력은 그대로, 확인 창 없음`, q('#toolMsg').textContent.includes(word) && q('#toolMsg').className === 'warn' && JSON.stringify(saved()) === before && asked.length === 0, q('#toolMsg').textContent);
+  }
+  ok('오류 뒤에도 화면은 정상', allMatch().length === 0 && b('label').value === '버서커');
+
+  // 악의적으로 만든 파일
+  const evil = JSON.parse(fa.text);
+  evil.label = '<img src=x onerror="window.__xss3=1">'; evil.data.label = '<svg onload="window.__xss3=1">';
+  evil.data.skills[3].name = '<script>window.__xss3=1</script>'; evil.data.evil = '<script>window.__xss3=1</script>';
+  evil.data.stone[0].id = 'constructor'; evil.data.cur.t5.id = '__proto__'; evil.data.skills[10].type = 'normal'; evil.data.baseCrit = '1e999'; evil.data.fix.t5 = 'toString';
+  await give(JSON.stringify(evil).replace('"cur":{', '"cur":{"__proto__":{"polluted":1},'), 'evil.json');
+  ok('악의적 파일: 확인 창 문구에 이름이 글자 그대로', asked.length === 1 && asked[0].includes('<svg onload'));
+  await runAndWait();
+  ok('악의적 파일: 스크립트 실행 없음, 객체 오염 없음', window.__xss3 === undefined && ({}).polluted === undefined && !document.querySelector('#tools img, #tools svg, #skills img, #skills script, #results img, #results script, #results svg'));
+  ok('악의적 파일: 알 수 없는 값은 기본값으로, 모르는 항목은 버림', saved().stone[0].id === 'none' && saved().cur.t5.id === 'none' && saved().fix.t5 === 'auto' && saved().skills[10].type === 'awakening' && saved().evil === undefined && saved().baseCrit === 0);
+  ok('악의적 파일: 이름은 글자 그대로 표시', b('label').value === '<svg onload="window.__xss3=1">' && q('#toolMsg').textContent.includes('<svg onload') && q('#results').textContent.includes('<script>window.__xss3=1</script>'));
+  ok('악의적 파일을 불러온 뒤에도 계산 정상', qa('#results .card').length === 4 && !bad(q('#results').innerText));
+  q('#exportBtn').click();
+  const fe = await grab();
+  ok('그 상태를 저장한 파일 이름에 금지 문자 없음', !/[\\/:*?"<>|]/.test(fe.name) && fe.name.endsWith('.json'), fe.name);
+
+  await give(fa.text, 'a.json');   // 새로고침 확인용으로 기록 A를 남긴다
+  HTMLAnchorElement.prototype.click = origClick;
+  ok('오류 없이 끝남', JSON.stringify(saved()) === A);
+}
+
+if (phase === 11) {   // 10단계 뒤 새로고침
+  ok('새로고침 후에도 불러온 기록이 유지됨', b('label').value === '기상술사 / 질풍' && b('baseCrit').value === '412' && b('fix.t3.strike').value === '2' && b('skills.0.dir').value === 'back' && b('stone.0.id').value === 'blunt');
+  ok('새로고침 후 안내 문구는 비어 있음', q('#toolMsg').textContent === '');
+  localStorage.removeItem(KEY);
+}
+
 return { phase, pass: res.filter(r => r.ok).length, fail: res.filter(r => !r.ok), info: res.filter(r => r.name === 'info') };
